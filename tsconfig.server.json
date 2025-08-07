@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "outDir": "dist/server",
+    "rootDir": "src",
+    "target": "es2020",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "src/server/**/*",
+    "src/lib/auth.ts",
+    "src/lib/database.ts", 
+    "src/lib/prisma.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+} 

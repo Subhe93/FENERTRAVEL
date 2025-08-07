@@ -1,0 +1,299 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // يمكن تغييرها إلى mysql أو sqlite حسب الحاجة
+  url      = env("DATABASE_URL")
+}
+
+// نموذج المستخدمين
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      UserRole @default(BRANCH)
+  branchId  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // العلاقات
+  branch             Branch?            @relation(fields: [branchId], references: [id])
+  createdShipments   Shipment[]         @relation("ShipmentCreator")
+  shipmentHistories  ShipmentHistory[]
+  logEntries         LogEntry[]
+  trackingEvents     TrackingEvent[]
+
+  @@map("users")
+}
+
+// نموذج الفروع
+model Branch {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  location  String
+  manager   String
+  email     String   @unique
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // العلاقات
+  users     User[]
+  shipments Shipment[]
+
+  @@map("branches")
+}
+
+// نموذج البلدان
+model Country {
+  id        String      @id @default(cuid())
+  name      String      @unique
+  code      String      @unique // كود ISO للبلد
+  flag      String? // إيموجي العلم
+  type      CountryType @default(BOTH)
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+
+  // العلاقات
+  originShipments      Shipment[] @relation("OriginCountry")
+  destinationShipments Shipment[] @relation("DestinationCountry")
+
+  @@map("countries")
+}
+
+// نموذج حالات الشحنة
+model ShipmentStatus {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  color       String // لون الحالة في واجهة المستخدم
+  description String?
+  order       Int     @default(0) // ترتيب الحالة في سير العمل
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  // العلاقات
+  shipments         Shipment[]
+  shipmentHistories ShipmentHistory[]
+  trackingEvents    TrackingEvent[]
+
+  @@map("shipment_statuses")
+}
+
+// النموذج الأساسي للشحنات
+model Shipment {
+  id                    String         @id @default(cuid())
+  shipmentNumber        String         @unique
+  branchId              String
+  createdById           String
+  statusId              String
+  originCountryId       String
+  destinationCountryId  String
+  
+  // بيانات المرسل
+  senderName            String
+  senderPhone           String
+  senderEmail           String?
+  senderAddress         String
+  
+  // بيانات المستلم
+  recipientName         String
+  recipientPhone        String
+  recipientEmail        String?
+  recipientAddress      String
+  
+  // تفاصيل الشحنة
+  weight                Decimal        @db.Decimal(8, 2)
+  numberOfBoxes         Int            @default(1)
+  content               String
+  paymentMethod         PaymentMethod  @default(CASH_ON_DELIVERY)
+  
+  // التواريخ
+  receivingDate         DateTime       @db.Date
+  expectedDeliveryDate  DateTime       @db.Date
+  actualDeliveryDate    DateTime?      @db.Date
+  
+  // المالية
+  shippingCost          Decimal?       @db.Decimal(10, 2)
+  paidAmount            Decimal?       @db.Decimal(10, 2) @default(0)
+  paymentStatus         PaymentStatus  @default(PENDING)
+  
+  // ملاحظات
+  notes                 String?
+  
+  // معلومات النظام
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  // العلاقات
+  branch            Branch               @relation(fields: [branchId], references: [id])
+  createdBy         User                 @relation("ShipmentCreator", fields: [createdById], references: [id])
+  status            ShipmentStatus       @relation(fields: [statusId], references: [id])
+  originCountry     Country              @relation("OriginCountry", fields: [originCountryId], references: [id])
+  destinationCountry Country             @relation("DestinationCountry", fields: [destinationCountryId], references: [id])
+  histories         ShipmentHistory[]
+  trackingEvents    TrackingEvent[]
+  invoice           Invoice?
+  waybill           Waybill?
+  logEntries        LogEntry[]
+
+  @@map("shipments")
+}
+
+// نموذج تاريخ الشحنة
+model ShipmentHistory {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  userId      String
+  action      String
+  field       String?
+  oldValue    String?
+  newValue    String?
+  statusId    String?
+  notes       String?
+  timestamp   DateTime @default(now())
+
+  // العلاقات
+  shipment Shipment        @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id])
+  status   ShipmentStatus? @relation(fields: [statusId], references: [id])
+
+  @@map("shipment_histories")
+}
+
+// نموذج سجل العمليات
+model LogEntry {
+  id          String      @id @default(cuid())
+  type        LogType
+  action      String
+  details     String
+  userId      String
+  shipmentId  String?
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime    @default(now())
+
+  // العلاقات
+  user     User      @relation(fields: [userId], references: [id])
+  shipment Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+
+  @@map("log_entries")
+}
+
+// نموذج أحداث التتبع
+model TrackingEvent {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  statusId    String
+  location    String?
+  description String
+  notes       String?
+  updatedById String
+  eventTime   DateTime
+  createdAt   DateTime @default(now())
+
+  // العلاقات
+  shipment  Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  status    ShipmentStatus @relation(fields: [statusId], references: [id])
+  updatedBy User           @relation(fields: [updatedById], references: [id])
+
+  @@map("tracking_events")
+}
+
+// نموذج الفواتير
+model Invoice {
+  id             String        @id @default(cuid())
+  shipmentId     String        @unique
+  invoiceNumber  String        @unique
+  totalAmount    Decimal       @db.Decimal(10, 2)
+  taxAmount      Decimal?      @db.Decimal(10, 2) @default(0)
+  discountAmount Decimal?      @db.Decimal(10, 2) @default(0)
+  status         InvoiceStatus @default(DRAFT)
+  issueDate      DateTime      @db.Date
+  dueDate        DateTime?     @db.Date
+  paidDate       DateTime?     @db.Date
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // العلاقات
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
+}
+
+// نموذج بوليصة الشحن
+model Waybill {
+  id               String    @id @default(cuid())
+  shipmentId       String    @unique
+  waybillNumber    String    @unique
+  carrierName      String?
+  carrierRefNumber String?
+  departureTime    DateTime?
+  arrivalTime      DateTime?
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // العلاقات
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@map("waybills")
+}
+
+// التعدادات (Enums)
+enum UserRole {
+  MANAGER
+  BRANCH
+
+  @@map("user_role")
+}
+
+enum CountryType {
+  ORIGIN
+  DESTINATION
+  BOTH
+
+  @@map("country_type")
+}
+
+enum PaymentMethod {
+  CASH_ON_DELIVERY
+  PREPAID
+  CREDIT_CARD
+  BANK_TRANSFER
+
+  @@map("payment_method")
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  REFUNDED
+
+  @@map("payment_status")
+}
+
+enum LogType {
+  SHIPMENT_UPDATE
+  SYSTEM_ACTION
+  USER_ACTION
+
+  @@map("log_type")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  CANCELLED
+
+  @@map("invoice_status")
+}
