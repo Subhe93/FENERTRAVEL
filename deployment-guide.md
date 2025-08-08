@@ -62,7 +62,7 @@ sudo -u postgres psql
 
 # إنشاء قاعدة البيانات والمستخدم
 CREATE DATABASE fenertravel_db;
-CREATE USER fenertravel_user WITH PASSWORD 'your_secure_password_here';
+CREATE USER fenertravel_user WITH PASSWORD 'fenertravel@s123';
 GRANT ALL PRIVILEGES ON DATABASE fenertravel_db TO fenertravel_user;
 ALTER USER fenertravel_user CREATEDB;
 
@@ -162,7 +162,7 @@ NODE_ENV=production
 PORT=5030
 
 # Database Configuration
-DATABASE_URL="postgresql://fenertravel_user:your_secure_password_here@localhost:5432/fenertravel_db"
+DATABASE_URL="postgresql://fenertravel_user:fenertravel@s123@localhost:5432/fenertravel_db"
 
 # JWT Secret
 JWT_SECRET=generate_very_secure_jwt_secret_key_here

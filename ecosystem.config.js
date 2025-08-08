@@ -2,16 +2,16 @@ module.exports = {
   apps: [
     {
       name: "fenertravel",
-      script: "dist/server/index.cjs",
+      script: "dist/server/server/index.cjs",
       instances: "max",
       exec_mode: "cluster",
       env: {
         NODE_ENV: "production",
-        PORT: 5030,
+        API_PORT: 5030,
       },
       env_production: {
         NODE_ENV: "production",
-        PORT: 5030,
+        API_PORT: 5030,
       },
       error_file: "/var/log/pm2/fenertravel-error.log",
       out_file: "/var/log/pm2/fenertravel-out.log",

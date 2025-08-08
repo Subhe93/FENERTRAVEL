@@ -110,11 +110,11 @@ const LoginPage = () => {
             </form>
 
             <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm font-medium text-gray-700 mb-2">حسابات تجريبية:</p>
+              {/* <p className="text-sm font-medium text-gray-700 mb-2">حسابات تجريبية:</p>
               <div className="space-y-1 text-xs text-gray-600">
-                <div>مدير: manager@fenertravel.com / admin123</div>
+                <div>مدير: admin@fenertravel.com / admin123</div>
                 <div>فرع: branch@fenertravel.com / branch123</div>
-              </div>
+              </div> */}
             </div>
           </CardContent>
         </Card>
