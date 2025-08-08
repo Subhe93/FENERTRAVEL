@@ -104,7 +104,7 @@ sudo nano /etc/nginx/sites-available/fenertravel
 ```nginx
 server {
     listen 80;
-    server_name your-domain.com www.your-domain.com;
+    server_name fenertravel.iwings-digital.com;
 
     location / {
         proxy_pass http://localhost:5030;
@@ -126,7 +126,7 @@ server {
 تفعيل التكوين:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/fenertravel /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/fenertravel.iwings-digital.com /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```

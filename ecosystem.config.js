@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: "fenertravel",
-      script: "dist/server/index.js",
+      script: "dist/server/index.cjs",
       instances: "max",
       exec_mode: "cluster",
       env: {
