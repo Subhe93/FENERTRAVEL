@@ -62,7 +62,7 @@ const LoginPage = () => {
                 <CardTitle className="text-xl">تسجيل الدخول</CardTitle>
                 <CardDescription>أدخل بيانات الدخول للوصول إلى النظام</CardDescription>
               </div>
-              <Button
+              {/* <Button
                 variant="outline"
                 size="sm"
                 onClick={toggleLanguage}
@@ -70,7 +70,7 @@ const LoginPage = () => {
               >
                 <Globe className="w-4 h-4" />
                 {language === 'ar' ? 'EN' : 'العربية'}
-              </Button>
+              </Button> */}
             </div>
           </CardHeader>
           <CardContent>
