@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, Globe } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { toast } from 'sonner';
 
 const LoginPage = () => {
@@ -14,8 +13,8 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login, isAuthenticated } = useAuth();
-  const { language, setLanguage } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
@@ -29,20 +28,20 @@ const LoginPage = () => {
       const success = await login(email, password);
       if (success) {
         toast.success('تم تسجيل الدخول بنجاح');
-        navigate('/');
+        // العودة إلى الصفحة التي كان المستخدم عليها قبل تسجيل الدخول
+        const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
+        navigate(from, { replace: true });
       } else {
         toast.error('بيانات الدخول غير صحيحة');
       }
-    } catch (error) {
+    } catch {
       toast.error('حدث خطأ أثناء تسجيل الدخول');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const toggleLanguage = () => {
-    setLanguage(language === 'ar' ? 'en' : 'ar');
-  };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">

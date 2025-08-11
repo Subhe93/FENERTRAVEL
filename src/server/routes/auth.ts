@@ -1,5 +1,5 @@
 import express from "express";
-import * as jwt from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import { authenticateUser } from "../../lib/auth";
 import { prisma } from "../../lib/prisma";
 

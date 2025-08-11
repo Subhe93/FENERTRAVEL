@@ -198,7 +198,7 @@ const EditShipmentPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label>الفرع *</Label>
-                <Select
+                <Select dir='rtl'
                   value={formData.branchId}
                   onValueChange={handleBranchChange}
                   disabled={user?.role === 'BRANCH'}
@@ -222,7 +222,7 @@ const EditShipmentPage = () => {
 
               <div>
                 <Label>الحالة</Label>
-                <Select
+                <Select dir="rtl"
                   value={formData.statusId}
                   onValueChange={(value) => handleInputChange('statusId', value)}
                 >
@@ -444,7 +444,7 @@ const EditShipmentPage = () => {
               
               <div>
                 <Label>بلد الأصل</Label>
-                <Select
+                <Select dir='rtl'
                   value={formData.originCountryId}
                   onValueChange={(value) => handleInputChange('originCountryId', value)}
                 >
@@ -466,7 +466,7 @@ const EditShipmentPage = () => {
               
               <div>
                 <Label>بلد الوجهة</Label>
-                <Select
+                <Select dir="rtl"
                   value={formData.destinationCountryId}
                   onValueChange={(value) => handleInputChange('destinationCountryId', value)}
                 >
@@ -488,7 +488,7 @@ const EditShipmentPage = () => {
               
               <div>
                 <Label>طريقة الدفع</Label>
-                <Select
+                <Select dir='rtl'
                   value={formData.paymentMethod}
                   onValueChange={(value) => handleInputChange('paymentMethod', value)}
                 >

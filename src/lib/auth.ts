@@ -1,4 +1,5 @@
-import * as bcrypt from "bcryptjs";
+// import * as bcrypt from "bcryptjs";
+import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 
 export async function hashPassword(password: string): Promise<string> {
@@ -29,7 +30,7 @@ export async function authenticateUser(email: string, password: string) {
     return null;
   }
 
-  // إرجاع المستخدم بدون كلمة المرور
+  // Remove password from returned user object
   const { password: _, ...userWithoutPassword } = user;
   return userWithoutPassword;
 }

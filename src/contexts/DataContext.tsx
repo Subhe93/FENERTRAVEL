@@ -18,6 +18,26 @@ import {
 } from '../lib/api-client';
 import { useAuth } from './AuthContext';
 
+interface BulkUpdateResult {
+  success: boolean;
+  results?: {
+    updated: Array<{
+      shipmentId: string;
+      shipmentNumber: string;
+      success: boolean;
+    }>;
+    errors: Array<{
+      shipmentId: string;
+      shipmentNumber: string;
+      error: string;
+    }>;
+    totalProcessed: number;
+    successCount: number;
+    errorCount: number;
+  };
+  message?: string;
+}
+
 interface DataContextType {
   shipments: Shipment[];
   branches: Branch[];
@@ -43,6 +63,7 @@ interface DataContextType {
   updateShipment: (id: string, updates: Partial<Shipment>) => Promise<boolean>;
   deleteShipment: (id: string) => Promise<boolean>;
   updateShipmentStatus: (id: string, statusId: string, notes?: string) => Promise<boolean>;
+  bulkUpdateShipmentStatus: (shipmentIds: string[], statusId: string, notes?: string) => Promise<BulkUpdateResult>;
   trackShipment: (shipmentNumber: string) => Promise<Shipment | null>;
   
   // Branches methods
@@ -260,6 +281,35 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Failed to update shipment status:', error);
       return false;
+    }
+  };
+
+  const bulkUpdateShipmentStatus = async (shipmentIds: string[], statusId: string, notes?: string): Promise<BulkUpdateResult> => {
+    try {
+      const response = await shipmentsAPI.bulkUpdateShipmentStatus(shipmentIds, statusId, notes);
+      if (response.success && response.data) {
+        // Update local state for successfully updated shipments
+        const updatedIds = response.data.updated.map(item => item.shipmentId);
+        setShipments(prev => prev.map(shipment => 
+          updatedIds.includes(shipment.id) ? { ...shipment, statusId } : shipment
+        ));
+        
+        return {
+          success: true,
+          results: response.data,
+          message: response.message
+        };
+      }
+      return {
+        success: false,
+        message: response.message || 'فشل في تحديث حالات الشحنات'
+      };
+    } catch (error) {
+      console.error('Failed to bulk update shipment status:', error);
+      return {
+        success: false,
+        message: 'حدث خطأ أثناء تحديث حالات الشحنات'
+      };
     }
   };
 
@@ -587,6 +637,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateShipment,
     deleteShipment,
     updateShipmentStatus,
+    bulkUpdateShipmentStatus,
     trackShipment,
     
     refreshBranches,

@@ -20,6 +20,14 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -61,10 +69,14 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Loader2
+  Loader2,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
+import { ResetIcon } from '@radix-ui/react-icons';
+import { DatePicker } from '@/components/ui/date-picker';
+import { Label } from '@/components/ui/label';
+import { format } from "date-fns";
 
 const ITEMS_PER_PAGE_OPTIONS = [5,10, 25, 50, 100];
 
@@ -84,8 +96,53 @@ const getPaymentMethodText = (method: string) => {
   }
 };
 
+type ColumnDef = {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  minWidth?: string;
+  sortKey: string;
+};
+
+const COLUMNS: ColumnDef[] = [
+  { id: 'shipmentNumber', label: 'رقم الشحنة', icon: <Package className="w-4 h-4" />, minWidth: '140px', sortKey: 'shipmentNumber' },
+  { id: 'sender', label: 'بيانات المرسل', icon: <User className="w-4 h-4" />, minWidth: '200px', sortKey: 'senderName' },
+  { id: 'recipient', label: 'بيانات المستلم', icon: <User className="w-4 h-4" />, minWidth: '200px', sortKey: 'recipientName' },
+  { id: 'weight', label: 'الوزن والصناديق', icon: <Weight className="w-4 h-4" />, minWidth: '120px', sortKey: 'weight' },
+  { id: 'countries', label: 'الأصل والوجهة', icon: <Globe className="w-4 h-4" />, minWidth: '150px', sortKey: 'originCountry' },
+  { id: 'content', label: 'المحتوى', icon: <FileCheck className="w-4 h-4" />, minWidth: '120px', sortKey: 'content' },
+  { id: 'paymentMethod', label: 'طريقة الدفع', icon: <CreditCard className="w-4 h-4" />, minWidth: '140px', sortKey: 'paymentMethod' },
+  { id: 'branch', label: 'الفرع', icon: <MapPin className="w-4 h-4" />, minWidth: '120px', sortKey: 'branchId' },
+  { id: 'status', label: 'الحالة', icon: <Clock className="w-4 h-4" />, minWidth: '130px', sortKey: 'status' },
+  { id: 'dates', label: 'التواريخ', icon: <Calendar className="w-4 h-4" />, minWidth: '160px', sortKey: 'createdAt' },
+  { id: 'notes', label: 'الملاحظات', icon: <FileText className="w-4 h-4" />, minWidth: '200px', sortKey: 'notes' },
+];
+
+const STORAGE_KEY = 'shipmentsTableVisibleColumns';
+
+const getStoredColumns = (): string[] => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsedColumns = JSON.parse(stored);
+      // تأكد من أن القيمة المخزنة صالحة
+      if (Array.isArray(parsedColumns) && parsedColumns.length > 0) {
+        // تأكد من أن جميع الأعمدة المخزنة موجودة في COLUMNS
+        const validColumns = parsedColumns.filter(col => COLUMNS.some(c => c.id === col));
+        if (validColumns.length > 0) {
+          return validColumns;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error reading stored columns:', error);
+  }
+  // إذا لم يتم العثور على قيمة مخزنة أو كانت غير صالحة، استخدم جميع الأعمدة
+  return COLUMNS.map(col => col.id);
+};
+
 const ShipmentsTable = () => {
-  const { statuses, branches, countries, updateShipmentStatus } = useData();
+  const { statuses, branches, countries, updateShipmentStatus, bulkUpdateShipmentStatus, deleteShipment } = useData();
   const { toast } = useToast();
   const {
     shipments,
@@ -109,13 +166,32 @@ const ShipmentsTable = () => {
     shipmentNumber: string;
     currentStatus: string;
     newStatus: string;
+    newStatusId: string;
   }>({
     isOpen: false,
     shipmentId: '',
     shipmentNumber: '',
     currentStatus: '',
-    newStatus: ''
+    newStatus: '',
+    newStatusId: ''
   });
+  const [bulkStatusUpdateDialog, setBulkStatusUpdateDialog] = useState<{
+    isOpen: boolean;
+    selectedCount: number;
+    newStatusId: string;
+    newStatusName: string;
+  }>({
+    isOpen: false,
+    selectedCount: 0,
+    newStatusId: '',
+    newStatusName: ''
+  });
+  const [deleteDialog, setDeleteDialog] = useState({
+    isOpen: false,
+    shipmentId: '',
+    shipmentNumber: ''
+  });
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(getStoredColumns());
 
   // Get unique payment methods from current shipments
   const uniquePaymentMethods = [...new Set(shipments.map(s => s.paymentMethod).filter(Boolean))];
@@ -204,7 +280,106 @@ const ShipmentsTable = () => {
         shipmentId: '',
         shipmentNumber: '',
         currentStatus: '',
-        newStatus: ''
+        newStatus: '',
+        newStatusId: ''
+      });
+    }
+  };
+
+  const handleBulkStatusChangeRequest = (newStatusId: string) => {
+    const selectedStatus = statuses.find(s => s.id === newStatusId);
+    if (!selectedStatus || selectedShipments.length === 0) return;
+    
+    setBulkStatusUpdateDialog({
+      isOpen: true,
+      selectedCount: selectedShipments.length,
+      newStatusId,
+      newStatusName: selectedStatus.name
+    });
+  };
+
+  const confirmBulkStatusChange = async () => {
+    try {
+      const result = await bulkUpdateShipmentStatus(
+        selectedShipments, 
+        bulkStatusUpdateDialog.newStatusId
+      );
+      
+      if (result.success && result.results) {
+        const { successCount, errorCount } = result.results;
+        
+        if (errorCount === 0) {
+          toast({
+            title: "تم تحديث الحالات بنجاح",
+            description: `تم تغيير حالة ${successCount} شحنة إلى "${bulkStatusUpdateDialog.newStatusName}"`,
+            variant: "default",
+          });
+        } else {
+          toast({
+            title: "تم تحديث الحالات جزئياً",
+            description: `تم تحديث ${successCount} شحنة بنجاح، فشل في تحديث ${errorCount} شحنة`,
+            variant: "default",
+          });
+        }
+        
+        // Clear selection and refresh
+        setSelectedShipments([]);
+        await refresh();
+      } else {
+        toast({
+          title: "فشل في تحديث الحالات",
+          description: result.message || "حدث خطأ أثناء تحديث حالات الشحنات",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Failed to bulk update shipment status:', error);
+      toast({
+        title: "خطأ في النظام",
+        description: "حدث خطأ غير متوقع",
+        variant: "destructive",
+      });
+    } finally {
+      setBulkStatusUpdateDialog({
+        isOpen: false,
+        selectedCount: 0,
+        newStatusId: '',
+        newStatusName: ''
+      });
+    }
+  };
+
+  const handleDeleteRequest = (shipmentId: string, shipmentNumber: string) => {
+    setDeleteDialog({
+      isOpen: true,
+      shipmentId,
+      shipmentNumber
+    });
+  };
+
+  const confirmDelete = async () => {
+    try {
+      // Implement the delete logic here, e.g., call an API to delete the shipment
+      await deleteShipment(deleteDialog.shipmentId);
+      toast({
+        title: "تم حذف الشحنة بنجاح",
+        description: `تم حذف الشحنة رقم ${deleteDialog.shipmentNumber}`,
+        variant: "default",
+      });
+      // Refresh the table data
+      await refresh();
+    } catch (error) {
+      console.error('Failed to delete shipment:', error);
+      toast({
+        title: "فشل في حذف الشحنة",
+        description: "حدث خطأ أثناء حذف الشحنة",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteDialog({
+        isOpen: false,
+        shipmentId: '',
+        shipmentNumber: ''
       });
     }
   };
@@ -290,6 +465,34 @@ const ShipmentsTable = () => {
     setPage(Math.max(1, Math.min(page, pagination.pages)));
   };
 
+  const toggleColumn = (columnId: string) => {
+    setVisibleColumns(prev => {
+      const newColumns = prev.includes(columnId)
+        ? prev.length > 1 ? prev.filter(id => id !== columnId) : prev // لا تسمح بإخفاء جميع الأعمدة
+        : [...prev, columnId];
+      
+      // حفظ في Local Storage
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newColumns));
+      } catch (error) {
+        console.error('Error saving columns to storage:', error);
+      }
+      
+      return newColumns;
+    });
+  };
+
+  // إضافة وظيفة إعادة تعيين الأعمدة
+  const resetColumns = () => {
+    const defaultColumns = COLUMNS.map(col => col.id);
+    setVisibleColumns(defaultColumns);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultColumns));
+    } catch (error) {
+      console.error('Error resetting columns in storage:', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Status Update Confirmation Dialog */}
@@ -317,6 +520,49 @@ const ShipmentsTable = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialog.isOpen} onOpenChange={(open) => 
+        setDeleteDialog(prev => ({ ...prev, isOpen: open }))
+      }>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد حذف الشحنة</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف الشحنة رقم <strong>{deleteDialog.shipmentNumber}</strong>؟
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>
+              تأكيد الحذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Status Update Confirmation Dialog */}
+      <AlertDialog open={bulkStatusUpdateDialog.isOpen} onOpenChange={(open) => 
+        setBulkStatusUpdateDialog(prev => ({ ...prev, isOpen: open }))
+      }>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد تحديث الحالات</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من تغيير حالة <strong>{bulkStatusUpdateDialog.selectedCount}</strong> شحنة؟
+              <br />
+              <br />
+              <span>الحالة الجديدة: <strong>{bulkStatusUpdateDialog.newStatusName}</strong></span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmBulkStatusChange}>
+              تأكيد التحديث
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Header Actions */}
       <div className="flex flex-col lg:flex-row gap-4 justify-between">
         <div className="flex flex-col sm:flex-row gap-2 flex-1">
@@ -332,6 +578,41 @@ const ShipmentsTable = () => {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2">
+          <DropdownMenu dir='rtl'>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4" />
+                إدارة الأعمدة
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>الأعمدة المرئية</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {COLUMNS.map((column) => (
+                <DropdownMenuCheckboxItem
+                  key={column.id}
+                  checked={visibleColumns.includes(column.id)}
+                  onCheckedChange={() => toggleColumn(column.id)}
+                >
+                  <span className="flex items-center gap-2">
+                    {column.icon}
+                    {column.label}
+                  </span>
+                </DropdownMenuCheckboxItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={false}
+                onCheckedChange={resetColumns}
+              >
+                <span className="flex items-center gap-2 text-blue-600">
+                  <ArrowUpDown className="w-4 h-4" />
+                  إعادة تعيين الأعمدة
+                </span>
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button
             variant="outline"
             onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
@@ -350,6 +631,54 @@ const ShipmentsTable = () => {
           </Button>
         </div>
       </div>
+
+      {/* Bulk Actions Bar */}
+      {selectedShipments.length > 0 && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-blue-700">
+                  تم تحديد {selectedShipments.length} شحنة
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedShipments([])}
+                  className="text-blue-700 border-blue-300"
+                >
+                  إلغاء التحديد
+                </Button>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-blue-700">تغيير الحالة:</span>
+                <Select dir="rtl" onValueChange={handleBulkStatusChangeRequest}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="اختر حالة جديدة" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statuses.map(status => (
+                      <SelectItem key={status.id} value={status.id}>
+                        <Badge 
+                          variant="outline"
+                          style={{ 
+                            borderColor: status.color,
+                            color: status.color,
+                            backgroundColor: status.color + '20'
+                          }}
+                        >
+                          {status.name}
+                        </Badge>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Advanced Filters */}
       {showAdvancedFilters && (
@@ -422,7 +751,7 @@ const ShipmentsTable = () => {
               {/* Payment Method Filter */}
               <div>
                 <label className="text-sm font-medium">طريقة الدفع</label>
-                <Select value={filters.paymentMethod || 'all'} onValueChange={(value) => updateFilter('paymentMethod', value)}>
+                <Select dir='rtl' value={filters.paymentMethod || 'all'} onValueChange={(value) => updateFilter('paymentMethod', value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="جميع الطرق" />
                   </SelectTrigger>
@@ -440,7 +769,7 @@ const ShipmentsTable = () => {
               {/* Content Filter */}
               <div>
                 <label className="text-sm font-medium">المحتوى</label>
-                <Select value={filters.content || 'all'} onValueChange={(value) => updateFilter('content', value)}>
+                <Select dir="rtl" value={filters.content || 'all'} onValueChange={(value) => updateFilter('content', value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="جميع المحتويات" />
                   </SelectTrigger>
@@ -458,7 +787,7 @@ const ShipmentsTable = () => {
               {/* Status Filter */}
               <div>
                 <label className="text-sm font-medium">الحالة</label>
-                <Select value={filters.status || 'all'} onValueChange={(value) => updateFilter('status', value)}>
+                <Select dir='rtl' value={filters.status || 'all'} onValueChange={(value) => updateFilter('status', value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="جميع الحالات" />
                   </SelectTrigger>
@@ -476,7 +805,7 @@ const ShipmentsTable = () => {
               {/* Branch Filter */}
               <div>
                 <label className="text-sm font-medium">الفرع</label>
-                <Select value={filters.branch || 'all'} onValueChange={(value) => updateFilter('branch', value)}>
+                <Select dir="rtl" value={filters.branch || 'all'} onValueChange={(value) => updateFilter('branch', value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="جميع الفروع" />
                   </SelectTrigger>
@@ -494,7 +823,7 @@ const ShipmentsTable = () => {
               {/* Origin Country Filter */}
               <div>
                 <label className="text-sm font-medium">بلد الأصل</label>
-                <Select value={filters.originCountry || 'all'} onValueChange={(value) => updateFilter('originCountry', value)}>
+                <Select dir="rtl" value={filters.originCountry || 'all'} onValueChange={(value) => updateFilter('originCountry', value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="جميع البلدان" />
                   </SelectTrigger>
@@ -512,7 +841,7 @@ const ShipmentsTable = () => {
               {/* Destination Country Filter */}
               <div>
                 <label className="text-sm font-medium">بلد الوجهة</label>
-                <Select value={filters.destinationCountry || 'all'} onValueChange={(value) => updateFilter('destinationCountry', value)}>
+                <Select dir="rtl" value={filters.destinationCountry || 'all'} onValueChange={(value) => updateFilter('destinationCountry', value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="جميع البلدان" />
                   </SelectTrigger>
@@ -529,21 +858,35 @@ const ShipmentsTable = () => {
 
               {/* Date From Filter */}
               <div>
-                <label className="text-sm font-medium">من تاريخ</label>
-                <Input
-                  type="date"
-                  value={filters.dateFrom || ''}
-                  onChange={(e) => updateFilter('dateFrom', e.target.value)}
+                <Label>من تاريخ</Label>
+                <DatePicker
+                  date={filters.dateFrom ? new Date(filters.dateFrom) : undefined}
+                  onSelect={(date) => {
+                    if (date) {
+                      const formattedDate = format(date, 'yyyy-MM-dd');
+                      updateFilter('dateFrom', formattedDate);
+                    } else {
+                      updateFilter('dateFrom', '');
+                    }
+                  }}
+                  placeholder="اختر تاريخ البداية"
                 />
               </div>
 
               {/* Date To Filter */}
               <div>
-                <label className="text-sm font-medium">إلى تاريخ</label>
-                <Input
-                  type="date"
-                  value={filters.dateTo || ''}
-                  onChange={(e) => updateFilter('dateTo', e.target.value)}
+                <Label>إلى تاريخ</Label>
+                <DatePicker
+                  date={filters.dateTo ? new Date(filters.dateTo) : undefined}
+                  onSelect={(date) => {
+                    if (date) {
+                      const formattedDate = format(date, 'yyyy-MM-dd');
+                      updateFilter('dateTo', formattedDate);
+                    } else {
+                      updateFilter('dateTo', '');
+                    }
+                  }}
+                  placeholder="اختر تاريخ النهاية"
                 />
               </div>
 
@@ -597,7 +940,10 @@ const ShipmentsTable = () => {
             </div>
 
             <div className="flex justify-end mt-6">
-              <Button variant="outline" onClick={clearAllFilters}>
+              {isLoading ? (<div className='flex flex-nowrap items-center gap-3'> <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+              <div className="text-gray-500">جاري تحميل البيانات...</div></div>): "" }
+              <Button variant="outline" size={'sm'} className='bg-white text-gray-500 border-[#fff]' onClick={clearAllFilters}>
+               <ResetIcon className='w-5'></ResetIcon>
                 مسح جميع الفلاتر
               </Button>
             </div>
@@ -612,7 +958,7 @@ const ShipmentsTable = () => {
         </div>
         <div className="flex items-center gap-2">
           <span>عرض</span>
-          <Select value={pagination.limit.toString()} onValueChange={(value) => {
+          <Select dir='rtl' value={pagination.limit.toString()} onValueChange={(value) => {
             setLimit(parseInt(value));
             setPage(1);
           }}>
@@ -639,124 +985,33 @@ const ShipmentsTable = () => {
               <TableRow className="bg-gray-50">
                 <TableHead className="w-12 sticky left-0 bg-gray-50 z-10">
                   <Checkbox
-                    className="p-2"
+           
                     checked={selectedShipments.length === shipments.length && shipments.length > 0}
                     onCheckedChange={handleSelectAll}
                   />
                 </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-100 min-w-[140px] sticky left-12 bg-gray-50 z-10"
-                  onClick={() => handleSort('shipmentNumber')}
-                >
-                  <div className="flex items-center gap-1">
-                    <Package className="w-4 h-4" />
-                    رقم الشحنة
-                    {getSortIcon('shipmentNumber')}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="min-w-[200px] cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('senderName')}
-                >
-                  <div className="flex items-center gap-1">
-                    <User className="w-4 h-4" />
-                    بيانات المرسل
-                    {getSortIcon('senderName')}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="min-w-[200px] cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('recipientName')}
-                >
-                  <div className="flex items-center gap-1">
-                    <User className="w-4 h-4" />
-                    بيانات المستلم
-                    {getSortIcon('recipientName')}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="min-w-[120px] cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('weight')}
-                >
-                  <div className="flex items-center gap-1">
-                    <Weight className="w-4 h-4" />
-                    الوزن والصناديق
-                    {getSortIcon('weight')}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="min-w-[150px] cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('originCountry')}
-                >
-                  <div className="flex items-center gap-1">
-                    <Globe className="w-4 h-4" />
-                    الأصل والوجهة
-                    {getSortIcon('originCountry')}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="min-w-[120px] cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('content')}
-                >
-                  <div className="flex items-center gap-1">
-                    <FileCheck className="w-4 h-4" />
-                    المحتوى
-                    {getSortIcon('content')}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="min-w-[140px] cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('paymentMethod')}
-                >
-                  <div className="flex items-center gap-1">
-                    <CreditCard className="w-4 h-4" />
-                    طريقة الدفع
-                    {getSortIcon('paymentMethod')}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="min-w-[120px] cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('branchId')}
-                >
-                  <div className="flex items-center gap-1">
-                    <MapPin className="w-4 h-4" />
-                    الفرع
-                    {getSortIcon('branchId')}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="min-w-[130px] cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('status')}
-                >
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-4 h-4" />
-                    الحالة
-                    {getSortIcon('status')}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="min-w-[160px] cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('createdAt')}
-                >
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    التواريخ
-                    {getSortIcon('createdAt')}
-                  </div>
-                </TableHead>
-                <TableHead className="min-w-[200px]">
-                  <div className="flex items-center gap-1">
-                    <FileText className="w-4 h-4" />
-                    الملاحظات
-                  </div>
-                </TableHead>
+                {COLUMNS.filter(col => visibleColumns.includes(col.id)).map((col) => (
+                  <TableHead 
+                    key={col.id}
+                    className={`cursor-pointer hover:bg-gray-100 ${col.minWidth ? `min-w-[${col.minWidth}]` : ''} ${
+                      col.id === 'shipmentNumber' ? 'sticky left-12 bg-gray-50 z-10' : ''
+                    }`}
+                    onClick={() => handleSort(col.sortKey as keyof Shipment)}
+                  >
+                    <div className="flex items-center gap-1">
+                      {col.icon}
+                      {col.label}
+                      {getSortIcon(col.sortKey as keyof Shipment)}
+                    </div>
+                  </TableHead>
+                ))}
                 <TableHead className="min-w-[150px] sticky right-0 bg-gray-50 z-10">الإجراءات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center py-8">
+                  <TableCell colSpan={visibleColumns.length + 2} className="text-center py-8">
                     <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
                     <p className="text-gray-500 mt-2">جاري تحميل البيانات...</p>
                   </TableCell>
@@ -770,163 +1025,169 @@ const ShipmentsTable = () => {
                         onCheckedChange={(checked) => handleSelectShipment(shipment.id, checked as boolean)}
                       />
                     </TableCell>
-                    <TableCell className="font-medium text-blue-600 sticky left-12 bg-white z-10">
-                      <Link to={`/shipment/${shipment.id}`} className="hover:underline">
-                        {shipment.shipmentNumber}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="font-medium flex items-center gap-1">
-                          <User className="w-3 h-3" />
-                          {shipment.senderName}
-                        </div>
-                        <div className="text-sm text-gray-500 flex items-center gap-1">
-                          <Phone className="w-3 h-3" />
-                          {shipment.senderPhone}
-                        </div>
-                        {shipment.senderAddress && (
-                          <div className="text-xs text-gray-400 flex items-center gap-1">
-                            <MapPin className="w-3 h-3" />
-                            {shipment.senderAddress.length > 30 
-                              ? shipment.senderAddress.substring(0, 30) + '...'
-                              : shipment.senderAddress
-                            }
-                          </div>
-                        )}
-                        {shipment.senderEmail && (
-                          <div className="text-xs text-gray-400 flex items-center gap-1">
-                            <Mail className="w-3 h-3" />
-                            {shipment.senderEmail}
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="font-medium flex items-center gap-1">
-                          <User className="w-3 h-3" />
-                          {shipment.recipientName}
-                        </div>
-                        <div className="text-sm text-gray-500 flex items-center gap-1">
-                          <Phone className="w-3 h-3" />
-                          {shipment.recipientPhone}
-                        </div>
-                        {shipment.recipientAddress && (
-                          <div className="text-xs text-gray-400 flex items-center gap-1">
-                            <MapPin className="w-3 h-3" />
-                            {shipment.recipientAddress.length > 30 
-                              ? shipment.recipientAddress.substring(0, 30) + '...'
-                              : shipment.recipientAddress
-                            }
-                          </div>
-                        )}
-                        {shipment.recipientEmail && (
-                          <div className="text-xs text-gray-400 flex items-center gap-1">
-                            <Mail className="w-3 h-3" />
-                            {shipment.recipientEmail}
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1">
-                          <Weight className="w-4 h-4 text-gray-500" />
-                          <span className="font-medium">{shipment.weight} كغ</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Box className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm">{shipment.numberOfBoxes} صندوق</span>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="text-sm">
-                          <span className="text-gray-500">من:</span> {typeof shipment.originCountry === 'object' ? shipment.originCountry?.name : shipment.originCountry}
-                        </div>
-                        <div className="text-sm">
-                          <span className="text-gray-500">إلى:</span> {typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name : shipment.destinationCountry}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm">{shipment.content || 'غير محدد'}</span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {getPaymentMethodText(shipment.paymentMethod)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <MapPin className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm">{typeof shipment.branch === 'object' ? shipment.branch?.name : shipment.branchName}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={typeof shipment.status === 'object' ? shipment.status?.id || '' : shipment.status || ''}
-                        onValueChange={(value) => handleStatusChangeRequest(shipment.id, value)}
+                    {COLUMNS.filter(col => visibleColumns.includes(col.id)).map((col) => (
+                      <TableCell 
+                        key={col.id}
+                        className={`${
+                          col.id === 'shipmentNumber' ? 'font-medium text-blue-600 sticky left-12 bg-white z-10' : ''
+                        }`}
                       >
-                        <SelectTrigger className="w-[130px]">
-                          <Badge 
-                            variant="outline" 
-                            style={{ 
-                              borderColor: getStatusColor(typeof shipment.status === 'object' ? shipment.status?.name || '' : shipment.status || ''),
-                              color: getStatusColor(typeof shipment.status === 'object' ? shipment.status?.name || '' : shipment.status || ''),
-                              backgroundColor: getStatusColor(typeof shipment.status === 'object' ? shipment.status?.name || '' : shipment.status || '') + '20'
-                            }}
-                          >
-                            {typeof shipment.status === 'object' ? shipment.status?.name : shipment.status}
+                        {col.id === 'shipmentNumber' ? (
+                          <Link to={`/shipment/${shipment.id}`} className="hover:underline">
+                            {shipment.shipmentNumber}
+                          </Link>
+                        ) : col.id === 'sender' ? (
+                          <div className="space-y-1">
+                            <div className="font-medium flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {shipment.senderName}
+                            </div>
+                            <div className="text-sm text-gray-500 flex items-center gap-1">
+                              <Phone className="w-3 h-3" />
+                              {shipment.senderPhone}
+                            </div>
+                            {shipment.senderAddress && (
+                              <div className="text-xs text-gray-400 flex items-center gap-1">
+                                <MapPin className="w-3 h-3" />
+                                {shipment.senderAddress.length > 30 
+                                  ? shipment.senderAddress.substring(0, 30) + '...'
+                                  : shipment.senderAddress
+                                }
+                              </div>
+                            )}
+                            {shipment.senderEmail && (
+                              <div className="text-xs text-gray-400 flex items-center gap-1">
+                                <Mail className="w-3 h-3" />
+                                {shipment.senderEmail}
+                              </div>
+                            )}
+                          </div>
+                        ) : col.id === 'recipient' ? (
+                          <div className="space-y-1">
+                            <div className="font-medium flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {shipment.recipientName}
+                            </div>
+                            <div className="text-sm text-gray-500 flex items-center gap-1">
+                              <Phone className="w-3 h-3" />
+                              {shipment.recipientPhone}
+                            </div>
+                            {shipment.recipientAddress && (
+                              <div className="text-xs text-gray-400 flex items-center gap-1">
+                                <MapPin className="w-3 h-3" />
+                                {shipment.recipientAddress.length > 30 
+                                  ? shipment.recipientAddress.substring(0, 30) + '...'
+                                  : shipment.recipientAddress
+                                }
+                              </div>
+                            )}
+                            {shipment.recipientEmail && (
+                              <div className="text-xs text-gray-400 flex items-center gap-1">
+                                <Mail className="w-3 h-3" />
+                                {shipment.recipientEmail}
+                              </div>
+                            )}
+                          </div>
+                        ) : col.id === 'weight' ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <Weight className="w-4 h-4 text-gray-500" />
+                              <span className="font-medium">{shipment.weight} كغ</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Box className="w-4 h-4 text-gray-500" />
+                              <span className="text-sm">{shipment.numberOfBoxes} صندوق</span>
+                            </div>
+                          </div>
+                        ) : col.id === 'countries' ? (
+                          <div className="space-y-1">
+                                    <div className="text-sm flex flex-nowrap justify-start items-center gap-1">
+                                      <span className="text-gray-500">من:</span> 
+                                      <img className='w-4 h-4'src={shipment.originCountry?.flagImage}></img>
+                                      {typeof shipment.originCountry === 'object' ? shipment.originCountry?.name : shipment.originCountry}
+                    
+                            </div>
+                                    <div className="text-sm flex flex-nowrap justify-start items-center gap-1">
+                                        <span className="text-gray-500">إلى:</span>
+                              <img className='w-4 h-4' src={shipment.destinationCountry?.flagImage}></img>
+                             {typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name : shipment.destinationCountry}
+                          
+                             </div>
+                          </div>
+                        ) : col.id === 'content' ? (
+                          <span className="text-sm">{shipment.content || 'غير محدد'}</span>
+                        ) : col.id === 'paymentMethod' ? (
+                          <Badge variant="outline" className="text-xs">
+                            {getPaymentMethodText(shipment.paymentMethod)}
                           </Badge>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {statuses.map(status => (
-                            <SelectItem key={status.id} value={status.id}>
+                        ) : col.id === 'branch' ? (
+                          <div className="flex items-center gap-1">
+                            <MapPin className="w-4 h-4 text-gray-500" />
+                            <span className="text-sm">{typeof shipment.branch === 'object' ? shipment.branch?.name : shipment.branchName}</span>
+                          </div>
+                        ) : col.id === 'status' ? (
+                                          <Select dir=
+                                            "rtl"
+                            value={typeof shipment.status === 'object' ? shipment.status?.id || '' : shipment.status || ''}
+                            onValueChange={(value) => handleStatusChangeRequest(shipment.id, value)}
+                          >
+                            <SelectTrigger className="w-[130px]">
                               <Badge 
-                                variant="outline"
+                                variant="outline" 
                                 style={{ 
-                                  borderColor: status.color,
-                                  color: status.color,
-                                  backgroundColor: status.color + '20'
+                                  borderColor: getStatusColor(typeof shipment.status === 'object' ? shipment.status?.name || '' : shipment.status || ''),
+                                  color: getStatusColor(typeof shipment.status === 'object' ? shipment.status?.name || '' : shipment.status || ''),
+                                  backgroundColor: getStatusColor(typeof shipment.status === 'object' ? shipment.status?.name || '' : shipment.status || '') + '20'
                                 }}
                               >
-                                {status.name}
+                                {typeof shipment.status === 'object' ? shipment.status?.name : shipment.status}
                               </Badge>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1 text-xs">
-                        <div>
-                          <span className="text-gray-500">الإنشاء:</span><br />
-                          {new Date(shipment.createdAt).toLocaleDateString()}
-                        </div>
-                        <div>
-                          <span className="text-gray-500">الاستلام:</span><br />
-                          {new Date(shipment.receivingDate).toLocaleDateString()}
-                        </div>
-                        <div>
-                          <span className="text-gray-500">التسليم المتوقع:</span><br />
-                          {new Date(shipment.expectedDeliveryDate).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="max-w-[180px]">
-                        {shipment.notes ? (
-                          <p className="text-xs text-gray-600 truncate" title={shipment.notes}>
-                            {shipment.notes}
-                          </p>
-                        ) : (
-                          <span className="text-xs text-gray-400">لا توجد ملاحظات</span>
-                        )}
-                      </div>
-                    </TableCell>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {statuses.map(status => (
+                                <SelectItem key={status.id} value={status.id}>
+                                  <Badge 
+                                    variant="outline"
+                                    style={{ 
+                                      borderColor: status.color,
+                                      color: status.color,
+                                      backgroundColor: status.color + '20'
+                                    }}
+                                  >
+                                    {status.name}
+                                  </Badge>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : col.id === 'dates' ? (
+                          <div className="space-y-1 text-xs">
+                            <div>
+                              <span className="text-gray-500">الإنشاء:</span><br />
+                              {new Date(shipment.createdAt).toLocaleDateString()}
+                            </div>
+                            <div>
+                              <span className="text-gray-500">الاستلام:</span><br />
+                              {new Date(shipment.receivingDate).toLocaleDateString()}
+                            </div>
+                            <div>
+                              <span className="text-gray-500">التسليم المتوقع:</span><br />
+                              {new Date(shipment.expectedDeliveryDate).toLocaleDateString()}
+                            </div>
+                          </div>
+                        ) : col.id === 'notes' ? (
+                          <div className="max-w-[180px]">
+                            {shipment.notes ? (
+                              <p className="text-xs text-gray-600 truncate" title={shipment.notes}>
+                                {shipment.notes}
+                              </p>
+                            ) : (
+                              <span className="text-xs text-gray-400">لا توجد ملاحظات</span>
+                            )}
+                          </div>
+                        ) : null}
+                      </TableCell>
+                    ))}
                     <TableCell className="sticky right-0 bg-white z-10">
                       <div className="flex items-center gap-1">
                         <Button variant="outline" size="sm" asChild>
@@ -944,13 +1205,16 @@ const ShipmentsTable = () => {
                             <Route className="w-4 h-4" />
                           </Link>
                         </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleDeleteRequest(shipment.id, shipment.shipmentNumber)}>
+                          <X className="w-4 h-4 text-red-500" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center py-8">
+                  <TableCell colSpan={visibleColumns.length + 2} className="text-center py-8">
                     <div className="flex flex-col items-center gap-2">
                       <Package className="w-8 h-8 text-gray-400" />
                       <p className="text-gray-500">لا توجد شحنات مطابقة للبحث</p>

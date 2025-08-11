@@ -1,5 +1,19 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '@/contexts/DataContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { logsAPI } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -28,15 +42,33 @@ import {
   Activity,
   Package,
   Settings,
-  User
+  User,
+  Trash2,
+  AlertTriangle,
+  AlertCircle
 } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { cn } from '@/lib/utils';
 const ITEMS_PER_PAGE = 15;
 
 const LogsPage = () => {
-  const { logs, isLoadingLogs } = useData();
+  const { logs, isLoadingLogs, refreshLogs } = useData();
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [cleanupType, setCleanupType] = useState<'all' | 'days'>('days');
+  const [daysToKeep, setDaysToKeep] = useState<number>(1);
+  const isFirstLoad = useRef(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (isFirstLoad.current || (!isLoadingLogs && logs.length === 0)) {
+      refreshLogs();
+      isFirstLoad.current = false;
+    }
+  }, [refreshLogs, isLoadingLogs, logs.length]);
 
   const filteredAndSortedLogs = useMemo(() => {
     const filtered = logs.filter(log => {
@@ -115,12 +147,38 @@ const LogsPage = () => {
     const date = new Date(timestamp);
     return {
       date: date.toLocaleDateString(),
-      time: date.toLocaleTimeString( { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false 
+      time: date.toLocaleTimeString(undefined, { 
+        hourCycle: 'h23',
+        hour: 'numeric',
+        minute: '2-digit'
       })
     };
+  };
+
+  const handleClearLogs = async () => {
+    try {
+      const response = await logsAPI.cleanupLogs(cleanupType === 'all' ? -1 : daysToKeep);
+      if (response.success && response.data) {
+        toast({
+          title: "تم تنظيف السجلات",
+          description: response.message || `تم حذف ${response.data.deletedCount} سجل بنجاح`,
+        });
+        await refreshLogs();
+      } else {
+        toast({
+          variant: "destructive",
+          title: "خطأ",
+          description: response.error || "حدث خطأ أثناء تنظيف السجلات",
+        });
+      }
+    } catch (error) {
+      console.error("Error cleaning up logs:", error);
+      toast({
+        variant: "destructive",
+        title: "خطأ",
+        description: "حدث خطأ أثناء تنظيف السجلات",
+      });
+    }
   };
 
   if (isLoadingLogs) {
@@ -141,6 +199,86 @@ const LogsPage = () => {
           <h1 className="text-3xl font-bold text-gray-900">سجل العمليات</h1>
           <p className="text-gray-600">تتبع جميع العمليات والتحديثات في النظام</p>
         </div>
+        {user?.role === 'MANAGER' && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm">
+                <Trash2 className="w-4 h-4 mr-2" />
+                تفريغ السجل
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>تأكيد تفريغ السجل</AlertDialogTitle>
+                <AlertDialogDescription className="space-y-4">
+                  <p className="text-gray-600">الرجاء تحديد نوع عملية التفريغ:</p>
+                  
+                  <RadioGroup  dir='rtl'
+                    value={cleanupType} 
+                    onValueChange={(value: 'all' | 'days') => setCleanupType(value)}
+                    className="flex flex-col gap-1"
+                  >
+                    <div className="flex items-center space-x-2 space-x-reverse">
+                      <RadioGroupItem value="all" id="all" />
+                      <Label htmlFor="all" className="text-sm font-medium">حذف جميع السجلات</Label>
+                    </div>
+                    <div className="flex items-center space-x-2 space-x-reverse">
+                      <RadioGroupItem value="days" id="days" />
+                      <Label htmlFor="days" className="text-sm font-medium">حذف السجلات الأقدم من</Label>
+                    </div>
+                  </RadioGroup>
+
+                  {cleanupType === 'days' && (
+                    <div className="flex items-center gap-2 mt-2 mr-6">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={daysToKeep}
+                        onChange={(e) => setDaysToKeep(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-20 text-center"
+                      />
+                      <span className="text-sm text-gray-600">يوم</span>
+                    </div>
+                  )}
+
+                  <div className={cn(
+                    "mt-4 p-3 rounded-lg text-sm",
+                    cleanupType === 'all' 
+                      ? "bg-red-50 text-red-700 border border-red-200"
+                      : "bg-yellow-50 text-yellow-700 border border-yellow-200"
+                  )}>
+                    <p className="flex items-center gap-2">
+                      {cleanupType === 'all' 
+                        ? <>
+                            <AlertTriangle className="w-4 h-4" />
+                            تحذير: سيتم حذف جميع السجلات بشكل نهائي
+                          </>
+                        : <>
+                            <AlertCircle className="w-4 h-4" />
+                            سيتم حذف السجلات الأقدم من {daysToKeep} يوم
+                          </>
+                      }
+                    </p>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="hover:bg-gray-100">إلغاء</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={handleClearLogs} 
+                  className={cn(
+                    "text-white",
+                    cleanupType === 'all' 
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-yellow-600 hover:bg-yellow-700"
+                  )}
+                >
+                  تأكيد الحذف
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -215,7 +353,7 @@ const LogsPage = () => {
               />
             </div>
             
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <Select dir="rtl" value={typeFilter} onValueChange={setTypeFilter}>
               <SelectTrigger className="w-[180px]">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue placeholder="نوع العملية" />
@@ -266,7 +404,7 @@ const LogsPage = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium">{log.userName || log.user?.name || 'غير معروف'}</div>
+                          <div className="font-medium">{log.user?.name}</div>
                         </TableCell>
                         <TableCell>
                           {log.shipmentId ? (

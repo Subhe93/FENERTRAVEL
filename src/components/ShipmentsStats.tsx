@@ -60,15 +60,15 @@ const ShipmentsStats = () => {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
-          <Card key={i}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 lg:px-6 pt-3 lg:pt-6">
-              <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+          <Card key={i} className="shadow-sm hover:shadow-md transition-shadow duration-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 lg:px-6 pt-4 lg:pt-6">
+              <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-5 w-5 bg-gray-200 rounded animate-pulse"></div>
             </CardHeader>
-            <CardContent className="px-3 lg:px-6 pb-3 lg:pb-6">
-              <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
+            <CardContent className="px-4 lg:px-6 pb-4 lg:pb-6">
+              <div className="h-8 w-16 bg-gray-200 rounded animate-pulse"></div>
             </CardContent>
           </Card>
         ))}
@@ -76,47 +76,62 @@ const ShipmentsStats = () => {
     );
   }
 
+  const cards = [
+    {
+      title: 'إجمالي الشحنات',
+      value: stats.total,
+      icon: Package,
+      color: 'text-gray-600',
+      bgColor: 'bg-gray-50',
+      valueColor: 'text-gray-900'
+    },
+    {
+      title: 'في الطريق',
+      value: stats.inTransit,
+      icon: Truck,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-50',
+      valueColor: 'text-orange-600'
+    },
+    {
+      title: 'تم التسليم',
+      value: stats.delivered,
+      icon: CheckCircle,
+      color: 'text-green-600',
+      bgColor: 'bg-green-50',
+      valueColor: 'text-green-600'
+    },
+    {
+      title: 'في المستودع',
+      value: stats.pending,
+      icon: Clock,
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-50',
+      valueColor: 'text-blue-600'
+    }
+  ];
+
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 lg:px-6 pt-3 lg:pt-6">
-          <CardTitle className="text-xs lg:text-sm font-medium">إجمالي الشحنات</CardTitle>
-          <Package className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent className="px-3 lg:px-6 pb-3 lg:pb-6">
-          <div className="text-xl lg:text-2xl font-bold">{stats.total}</div>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 lg:px-6 pt-3 lg:pt-6">
-          <CardTitle className="text-xs lg:text-sm font-medium">في الطريق</CardTitle>
-          <Truck className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent className="px-3 lg:px-6 pb-3 lg:pb-6">
-          <div className="text-xl lg:text-2xl font-bold text-orange-600">{stats.inTransit}</div>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 lg:px-6 pt-3 lg:pt-6">
-          <CardTitle className="text-xs lg:text-sm font-medium">تم التسليم</CardTitle>
-          <CheckCircle className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent className="px-3 lg:px-6 pb-3 lg:pb-6">
-          <div className="text-xl lg:text-2xl font-bold text-green-600">{stats.delivered}</div>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 lg:px-6 pt-3 lg:pt-6">
-          <CardTitle className="text-xs lg:text-sm font-medium">في المستودع</CardTitle>
-          <Clock className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent className="px-3 lg:px-6 pb-3 lg:pb-6">
-          <div className="text-xl lg:text-2xl font-bold text-blue-600">{stats.pending}</div>
-        </CardContent>
-      </Card>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {cards.map((card, index) => {
+        const Icon = card.icon;
+        return (
+          <Card 
+            key={index} 
+            className={`${card.bgColor} shadow-sm hover:shadow-md transition-all duration-200 transform hover:-translate-y-1`}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 lg:px-6 pt-4 lg:pt-6">
+              <CardTitle className="text-sm lg:text-base font-semibold">{card.title}</CardTitle>
+              <Icon className={`h-5 w-5 ${card.color}`} />
+            </CardHeader>
+            <CardContent className="px-4 lg:px-6 pb-4 lg:pb-6">
+              <div className={`text-2xl lg:text-3xl font-bold ${card.valueColor} `}>
+                {card.value.toLocaleString()}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 };

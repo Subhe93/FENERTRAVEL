@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { DatePicker } from '@/components/ui/date-picker';
+import { format } from "date-fns";
 import { 
   Package, 
   User, 
@@ -25,11 +26,12 @@ import {
   Box,
   Globe,
   CreditCard,
-  Calendar,
   StickyNote,
   Flag
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+type PaymentMethod = 'CASH_ON_DELIVERY' | 'PREPAID' | 'CREDIT_CARD' | 'BANK_TRANSFER';
 
 const AddShipmentPage = () => {
   const navigate = useNavigate();
@@ -53,7 +55,7 @@ const AddShipmentPage = () => {
 
   const [formData, setFormData] = useState({
     branchId: user?.branchId || '',
-    branchName: user?.branchName || '',
+    branchName: user?.branch?.name || '',
     senderName: '',
     senderPhone: '',
     senderAddress: '',
@@ -67,12 +69,11 @@ const AddShipmentPage = () => {
     originCountryId: '',
     destinationCountryId: '',
     content: '',
-    paymentMethod: 'CASH_ON_DELIVERY',
-    receivingDate: new Date().toISOString().split('T')[0],
-    expectedDeliveryDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    paymentMethod: 'CASH_ON_DELIVERY' as PaymentMethod,
+    receivingDate: format(new Date(), 'yyyy-MM-dd'),
+    expectedDeliveryDate: format(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
     notes: '',
-    statusId: activeStatuses.length > 0 ? activeStatuses[0].id : '',
-    createdBy: user?.name || ''
+    statusId: activeStatuses.length > 0 ? activeStatuses[0].id : ''
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -158,6 +159,9 @@ const AddShipmentPage = () => {
       if (field === 'weight' && formData.weight <= 0) {
         newErrors.weight = 'يرجى إدخال وزن صحيح';
       }
+        if (field === 'content' && !formData.content.trim()) {
+        newErrors.content = 'يرجى إدخال محتوى الشحنة';
+      }
       if (field === 'originCountryId' && !formData.originCountryId) {
         newErrors.originCountryId = 'يرجى اختيار بلد الأصل';
       }
@@ -186,7 +190,9 @@ const AddShipmentPage = () => {
   const handleSubmit = async () => {
     if (validateStep(currentStep)) {
       try {
-        const success = await createShipment(formData);
+        // Remove branchName as it's not part of the Shipment type
+        const { branchName, ...shipmentData } = formData;
+        const success = await createShipment(shipmentData);
         if (success) {
           toast.success('تم إضافة الشحنة بنجاح');
           navigate('/');
@@ -239,7 +245,7 @@ const AddShipmentPage = () => {
             
             <div className="max-w-md mx-auto">
               <Label>الفرع *</Label>
-              <Select
+              <Select dir='rtl'
                 value={formData.branchId}
                 onValueChange={handleBranchChange}
                 disabled={user?.role === 'BRANCH'}
@@ -442,21 +448,23 @@ const AddShipmentPage = () => {
               </div>
               
               <div>
-                <Label>المحتوى</Label>
+                <Label>المحتوى *</Label>
                 <div className="relative">
                   <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     value={formData.content}
                     onChange={(e) => handleInputChange('content', e.target.value)}
-                    className="pl-10"
+            
+                      className={`pl-10 ${errors.content ? 'border-red-500' : ''}`}
                     placeholder="مستندات، هدايا، إلخ"
                   />
                 </div>
+                {errors.content && <p className="text-red-500 text-sm mt-1">{errors.content}</p>}
               </div>
               
               <div>
                 <Label>بلد الأصل *</Label>
-                <Select
+                <Select dir='rtl'
                   value={formData.originCountryId}
                   onValueChange={(value) => handleInputChange('originCountryId', value)}
                 >
@@ -479,7 +487,7 @@ const AddShipmentPage = () => {
               
               <div>
                 <Label>بلد الوجهة *</Label>
-                <Select
+                <Select dir='rtl'
                   value={formData.destinationCountryId}
                   onValueChange={(value) => handleInputChange('destinationCountryId', value)}
                 >
@@ -502,7 +510,7 @@ const AddShipmentPage = () => {
 
               <div>
                 <Label>حالة الشحنة *</Label>
-                <Select
+                <Select dir="rtl"
                   value={formData.statusId}
                   onValueChange={(value) => handleInputChange('statusId', value)}
                 >
@@ -528,7 +536,7 @@ const AddShipmentPage = () => {
               
               <div>
                 <Label>طريقة الدفع</Label>
-                <Select
+                <Select dir="rtl"
                   value={formData.paymentMethod}
                   onValueChange={(value) => handleInputChange('paymentMethod', value)}
                 >
@@ -566,28 +574,34 @@ const AddShipmentPage = () => {
               
               <div>
                 <Label>تاريخ الاستلام</Label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    type="date"
-                    value={formData.receivingDate}
-                    onChange={(e) => handleInputChange('receivingDate', e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+                <DatePicker
+                  date={formData.receivingDate ? new Date(formData.receivingDate) : undefined}
+                  onSelect={(date) => {
+                    if (date) {
+                      const formattedDate = format(date, 'yyyy-MM-dd');
+                      handleInputChange('receivingDate', formattedDate);
+                    } else {
+                      handleInputChange('receivingDate', '');
+                    }
+                  }}
+                  placeholder="اختر تاريخ الاستلام"
+                />
               </div>
               
               <div>
                 <Label>تاريخ التسليم المتوقع</Label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    type="date"
-                    value={formData.expectedDeliveryDate}
-                    onChange={(e) => handleInputChange('expectedDeliveryDate', e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+                <DatePicker
+                  date={formData.expectedDeliveryDate ? new Date(formData.expectedDeliveryDate) : undefined}
+                  onSelect={(date) => {
+                    if (date) {
+                      const formattedDate = format(date, 'yyyy-MM-dd');
+                      handleInputChange('expectedDeliveryDate', formattedDate);
+                    } else {
+                      handleInputChange('expectedDeliveryDate', '');
+                    }
+                  }}
+                  placeholder="اختر تاريخ التسليم المتوقع"
+                />
               </div>
             </div>
           </div>
@@ -724,7 +738,7 @@ const AddShipmentPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div dir='rtl' className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-8">
@@ -736,9 +750,9 @@ const AddShipmentPage = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm text-gray-600">الخطوة {currentStep} من {totalSteps}</span>
-            <span className="text-sm text-gray-600">{Math.round((currentStep / totalSteps) * 100)}%</span>
+            <span className="text-sm text-gray-600 text-start">{Math.round((currentStep / totalSteps) * 100)}%</span>
           </div>
-          <Progress value={(currentStep / totalSteps) * 100} className="h-2" />
+          <Progress dir='rtl' value={(currentStep / totalSteps) * 100} className="h-2" />
         </div>
 
         {/* Steps Navigation */}

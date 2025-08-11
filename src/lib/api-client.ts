@@ -126,6 +126,7 @@ export interface Country {
   name: string;
   code: string;
   flag?: string;
+  flagImage?: string;
   type: "ORIGIN" | "DESTINATION" | "BOTH";
   isActive: boolean;
   createdAt: string;

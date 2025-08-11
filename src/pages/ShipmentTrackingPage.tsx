@@ -27,7 +27,8 @@ import {
   Star,
   Shield,
   Zap,
-  Target
+  Target,
+  ArrowLeft
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { type Shipment, type ShipmentHistory } from '@/lib/api-client';
@@ -310,7 +311,8 @@ const ShipmentTrackingPage = () => {
                       </div>
                       <div className="relative flex justify-center">
                         <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                          <Truck className="w-4 h-4 text-white" />
+                          <ArrowLeft className="w-4 h-4 text-white" />
+                      
                         </div>
                       </div>
                     </div>

@@ -76,8 +76,8 @@ const ShipmentDetailPage = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex md:flex-nowrap flex-wrap items-center justify-between">
+        <div className="flex  items-center gap-4">
           <Button
             variant="outline"
             size="sm"
@@ -93,8 +93,8 @@ const ShipmentDetailPage = () => {
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
-          <Select
+        <div className="flex md:flex-nowrap flex-wrap items-center gap-3">
+          <Select dir="rtl"
             value={shipment.statusId}
             onValueChange={handleStatusChange}
           >

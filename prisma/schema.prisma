@@ -57,6 +57,7 @@ model Country {
   name      String      @unique
   code      String      @unique // كود ISO للبلد
   flag      String? // إيموجي العلم
+  flagImage String? @db.Text // صورة العلم المخصصة
   type      CountryType @default(BOTH)
   isActive  Boolean     @default(true)
   createdAt DateTime    @default(now())

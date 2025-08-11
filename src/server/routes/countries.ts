@@ -106,7 +106,7 @@ router.post("/", requireAuth, async (req, res) => {
       });
     }
 
-    const { name, code, flag, type } = req.body;
+    const { name, code, flag, flagImage, type } = req.body;
 
     // التحقق من البيانات المطلوبة
     if (!name || !code || !type) {
@@ -146,6 +146,7 @@ router.post("/", requireAuth, async (req, res) => {
         name,
         code: code.toUpperCase(),
         flag,
+        flagImage,
         type,
       },
     });
@@ -190,7 +191,7 @@ router.put("/:id", requireAuth, async (req, res) => {
       });
     }
 
-    const { name, code, flag, type, isActive } = req.body;
+    const { name, code, flag, flagImage, type, isActive } = req.body;
 
     const existingCountry = await prisma.country.findUnique({
       where: { id },
@@ -238,6 +239,7 @@ router.put("/:id", requireAuth, async (req, res) => {
         name,
         code: code ? code.toUpperCase() : undefined,
         flag,
+        flagImage,
         type,
         isActive,
       },

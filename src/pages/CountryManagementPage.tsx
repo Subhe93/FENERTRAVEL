@@ -44,6 +44,8 @@ import { Globe, Plus, Edit, Trash2, Flag, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { countriesAPI } from '@/lib/api';
 import type { Country } from '@/lib/api-client';
+import { FlagPicker } from '@/components/ui/flag-picker';
+import { FileUpload } from '@/components/ui/file-upload';
 
 const CountryManagementPage = () => {
   const { countries, refreshCountries } = useData();
@@ -66,6 +68,7 @@ const CountryManagementPage = () => {
     name: '',
     code: '',
     flag: '',
+    flagImage: '',
     type: 'BOTH'
   });
 
@@ -74,6 +77,7 @@ const CountryManagementPage = () => {
       name: '',
       code: '',
       flag: '',
+      flagImage: '',
       type: 'BOTH'
     });
   };
@@ -107,6 +111,7 @@ const CountryManagementPage = () => {
         name: formData.name,
         code: formData.code.toUpperCase(),
         flag: formData.flag || '🏳️',
+        flagImage: formData.flagImage || '',
         type: formData.type
       });
 
@@ -130,6 +135,7 @@ const CountryManagementPage = () => {
       name: country.name,
       code: country.code,
       flag: country.flag || '',
+      flagImage: country.flagImage || '',
       type: country.type
     });
     setIsEditDialogOpen(true);
@@ -156,6 +162,7 @@ const CountryManagementPage = () => {
         name: formData.name,
         code: formData.code.toUpperCase(),
         flag: formData.flag || '🏳️',
+        flagImage: formData.flagImage || '',
         type: formData.type
       });
 
@@ -221,7 +228,15 @@ const CountryManagementPage = () => {
           <TableRow key={country.id}>
             <TableCell>
               <div className="flex items-center gap-2">
-                <span className="text-2xl">{country.flag}</span>
+                {country.flagImage ? (
+                  <img 
+                    src={country.flagImage} 
+                    alt={country.name}
+                    className="w-8 h-6 object-cover rounded"
+                  />
+                ) : (
+                  <span className="text-2xl">{country.flag || '🏳️'}</span>
+                )}
               </div>
             </TableCell>
             <TableCell className="font-medium">{country.name}</TableCell>
@@ -322,16 +337,23 @@ const CountryManagementPage = () => {
               </div>
               <div>
                 <Label htmlFor="flag">العلم (اختياري)</Label>
-                <Input
-                  id="flag"
+                <FlagPicker
                   value={formData.flag}
-                  onChange={(e) => handleInputChange('flag', e.target.value)}
-                  placeholder="مثال: 🇸🇦"
+                  onChange={(flag) => handleInputChange('flag', flag)}
+                  placeholder="اختر علم البلد"
+                />
+              </div>
+              <div>
+                <Label htmlFor="flagImage">صورة العلم المخصصة (اختياري)</Label>
+                <FileUpload
+                  value={formData.flagImage}
+                  onChange={(value) => handleInputChange('flagImage', value)}
+                  accept="image/*"
                 />
               </div>
               <div>
                 <Label htmlFor="type">نوع البلد *</Label>
-                <Select
+                <Select dir="rtl"
                   value={formData.type}
                   onValueChange={(value) => handleInputChange('type', value)}
                 >
@@ -369,26 +391,19 @@ const CountryManagementPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs style={{direction:'rtl'}} value={activeTab} onValueChange={setActiveTab} className="space-y-4 ">
-            <TabsList className="grid w-full grid-cols-2">
+          <Tabs dir='rtl' value={activeTab} onValueChange={setActiveTab} className="space-y-4 ">
+            <TabsList className="grid w-full grid-cols-2 gap-[10px]">
               <TabsTrigger
                 value="origin"
-                className={`flex items-center gap-2 ${
-                  activeTab === 'origin'
-                    ? 'bg-white text-gray-900'
-                    : 'bg-gray-200 text-gray-900'
-                }`}
+                className={`flex items-center gap-2 bg-white text-gray-900`}
               >
                 <Flag className="w-4 h-4" />
                 بلدان الأصل ({originCountries.length})
               </TabsTrigger>
               <TabsTrigger
                 value="destination"
-                className={`flex items-center gap-2 ${
-                  activeTab === 'destination'
-                    ? 'bg-white text-gray-900'
-                    : 'bg-gray-200 text-gray-900'
-                }`}
+                style={{ background:' #e5e7eb' }}
+                className={`flex items-center gap-2 bg-gray-200 text-gray-900`}
               >
                 <Globe className="w-4 h-4" />
                 بلدان الوجهة ({destinationCountries.length})
@@ -407,13 +422,20 @@ const CountryManagementPage = () => {
             </div>
 
             <TabsContent value="origin">
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border  rounded-lg overflow-hidden">
+                <div className='flex flex-nowrap p-2 items-center gap-2'>
+                <Flag className="w-4 h-4" />
+                بلدان الأصل ({originCountries.length})</div>
+               
                 <CountryTable countries={filteredCountries} />
               </div>
             </TabsContent>
 
             <TabsContent value="destination">
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border bg-[#6b728010] rounded-lg overflow-hidden">
+                     <div className='flex flex-nowrap p-2 items-center gap-2'>
+                <Globe className="w-4 h-4" />
+                بلدان الوجهة ({destinationCountries.length})</div>
                 <CountryTable countries={filteredCountries} />
               </div>
             </TabsContent>
@@ -450,15 +472,23 @@ const CountryManagementPage = () => {
             </div>
             <div>
               <Label htmlFor="edit-flag">العلم (اختياري)</Label>
-              <Input
-                id="edit-flag"
+              <FlagPicker
                 value={formData.flag}
-                onChange={(e) => handleInputChange('flag', e.target.value)}
+                onChange={(flag) => handleInputChange('flag', flag)}
+                placeholder="اختر علم البلد"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-flagImage">صورة العلم المخصصة (اختياري)</Label>
+              <FileUpload
+                value={formData.flagImage}
+                onChange={(value) => handleInputChange('flagImage', value)}
+                accept="image/*"
               />
             </div>
             <div>
               <Label htmlFor="edit-type">نوع البلد *</Label>
-              <Select
+              <Select dir='rtl'
                 value={formData.type}
                 onValueChange={(value) => handleInputChange('type', value)}
               >

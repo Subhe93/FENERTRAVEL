@@ -269,9 +269,14 @@ router.get("/stats/summary", requireAuth, async (req, res) => {
 router.delete("/cleanup", requireAuth, async (req, res) => {
   try {
     const user = (req as any).user;
+    console.log("Cleanup logs request by user:", user);
 
     // التحقق من صلاحيات المدير
     if (user.role !== "MANAGER") {
+      console.log(
+        "Unauthorized cleanup attempt by non-manager user:",
+        user.role
+      );
       return res.status(403).json({
         success: false,
         error: "غير مصرح لك بتنظيف السجلات",
@@ -280,8 +285,36 @@ router.delete("/cleanup", requireAuth, async (req, res) => {
 
     const { days = "30" } = req.query;
     const daysNumber = parseInt(days as string);
+    console.log("Cleanup logs for days:", daysNumber);
+
+    // حذف جميع السجلات إذا كانت القيمة -1
+    if (daysNumber === -1) {
+      console.log("Attempting to delete all logs");
+      const result = await prisma.logEntry.deleteMany({});
+      console.log("Deletion result:", result);
+
+      // تسجيل عملية التنظيف
+      const cleanupLog = await prisma.logEntry.create({
+        data: {
+          type: "SYSTEM_ACTION",
+          action: "تنظيف السجلات",
+          details: `تم حذف جميع السجلات (${result.count} سجل)`,
+          userId: user.id,
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+        },
+      });
+      console.log("Created cleanup log entry:", cleanupLog);
+
+      return res.json({
+        success: true,
+        data: { deletedCount: result.count },
+        message: `تم حذف جميع السجلات (${result.count} سجل) بنجاح`,
+      });
+    }
 
     if (daysNumber < 1) {
+      console.log("Invalid days parameter:", daysNumber);
       return res.status(400).json({
         success: false,
         error: "عدد الأيام يجب أن يكون أكبر من صفر",
@@ -289,16 +322,19 @@ router.delete("/cleanup", requireAuth, async (req, res) => {
     }
 
     const cutoffDate = new Date(Date.now() - daysNumber * 24 * 60 * 60 * 1000);
+    console.log("Cutoff date for cleanup:", cutoffDate);
 
     // حذف السجلات القديمة
+    console.log("Attempting to delete logs before:", cutoffDate);
     const result = await prisma.logEntry.deleteMany({
       where: {
         timestamp: { lt: cutoffDate },
       },
     });
+    console.log("Deletion result:", result);
 
     // تسجيل عملية التنظيف
-    await prisma.logEntry.create({
+    const cleanupLog = await prisma.logEntry.create({
       data: {
         type: "SYSTEM_ACTION",
         action: "تنظيف السجلات",
@@ -308,6 +344,7 @@ router.delete("/cleanup", requireAuth, async (req, res) => {
         userAgent: req.headers["user-agent"],
       },
     });
+    console.log("Created cleanup log entry:", cleanupLog);
 
     res.json({
       success: true,

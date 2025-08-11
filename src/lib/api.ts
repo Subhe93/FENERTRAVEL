@@ -114,6 +114,28 @@ export const shipmentsAPI = {
     return apiClient.patch(`/shipments/${id}/status`, { statusId, notes });
   },
 
+  async bulkUpdateShipmentStatus(
+    shipmentIds: string[],
+    statusId: string,
+    notes?: string
+  ) {
+    return apiClient.patch<{
+      updated: Array<{
+        shipmentId: string;
+        shipmentNumber: string;
+        success: boolean;
+      }>;
+      errors: Array<{
+        shipmentId: string;
+        shipmentNumber: string;
+        error: string;
+      }>;
+      totalProcessed: number;
+      successCount: number;
+      errorCount: number;
+    }>("/shipments/bulk/status", { shipmentIds, statusId, notes });
+  },
+
   async deleteShipment(id: string) {
     return apiClient.delete(`/shipments/${id}`);
   },
@@ -342,7 +364,12 @@ export const logsAPI = {
   },
 
   async cleanupLogs(days: number = 30) {
-    return apiClient.delete(`/logs/cleanup?days=${days}`);
+    return apiClient.delete<{
+      success: boolean;
+      data: { deletedCount: number };
+      message: string;
+      error?: string;
+    }>(`/logs/cleanup?days=${days}`);
   },
 };
 

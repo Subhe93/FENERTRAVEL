@@ -205,3 +205,5 @@ yarn db:studio
 ## الدعم
 
 للمساعدة أو الاستفسارات، يرجى التواصل مع فريق التطوير.
+
+npx prisma migrate dev --name add_flag_image_to_country

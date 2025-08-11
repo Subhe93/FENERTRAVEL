@@ -65,7 +65,7 @@ const ShipmentStatusHistory: React.FC<ShipmentStatusHistoryProps> = ({
               </div>
               
               {/* Status change details */}
-              {historyItem.oldValue && historyItem.newValue && historyItem.oldValue !== historyItem.newValue && (
+              {/* {historyItem.oldValue && historyItem.newValue && historyItem.oldValue !== historyItem.newValue && (
                 <div className="mb-3 p-3 bg-white rounded border border-gray-200">
                   <div className="text-sm">
                     <div className="flex items-center gap-2 mb-1">
@@ -82,7 +82,7 @@ const ShipmentStatusHistory: React.FC<ShipmentStatusHistoryProps> = ({
                     </div>
                   </div>
                 </div>
-              )}
+              )} */}
               
               {/* Notes if available */}
               {historyItem.notes && (

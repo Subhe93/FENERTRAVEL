@@ -623,6 +623,137 @@ router.put("/:id", requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/shipments/bulk/status - تحديث حالة شحنات متعددة
+router.patch("/bulk/status", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const { shipmentIds, statusId, notes } = req.body;
+
+    console.log("Bulk status update request:", {
+      userId: user.id,
+      shipmentIds,
+      statusId,
+      notes,
+    });
+
+    if (!statusId) {
+      return res.status(400).json({
+        success: false,
+        error: "معرف الحالة مطلوب",
+      });
+    }
+
+    if (
+      !shipmentIds ||
+      !Array.isArray(shipmentIds) ||
+      shipmentIds.length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "قائمة معرفات الشحنات مطلوبة",
+      });
+    }
+
+    // التحقق من وجود الشحنات والصلاحيات
+    const shipments = await prisma.shipment.findMany({
+      where: { id: { in: shipmentIds } },
+      include: { status: true },
+    });
+
+    if (shipments.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "لم يتم العثور على أي شحنات",
+      });
+    }
+
+    // التحقق من الصلاحيات لكل شحنة
+    const unauthorizedShipments = shipments.filter(
+      (shipment) =>
+        user.role === "BRANCH" && user.branchId !== shipment.branchId
+    );
+
+    if (unauthorizedShipments.length > 0) {
+      return res.status(403).json({
+        success: false,
+        error: `غير مصرح لك بتعديل ${unauthorizedShipments.length} من الشحنات المحددة`,
+      });
+    }
+
+    // تحديث حالات الشحنات
+    const results: Array<{
+      shipmentId: string;
+      shipmentNumber: string;
+      success: boolean;
+    }> = [];
+    const errors: Array<{
+      shipmentId: string;
+      shipmentNumber: string;
+      error: string;
+    }> = [];
+
+    for (const shipment of shipments) {
+      try {
+        await shipmentService.updateShipmentStatus(
+          shipment.id,
+          statusId,
+          user.id,
+          notes
+        );
+        results.push({
+          shipmentId: shipment.id,
+          shipmentNumber: shipment.shipmentNumber,
+          success: true,
+        });
+      } catch (error) {
+        console.error(
+          `Failed to update shipment ${shipment.shipmentNumber}:`,
+          error
+        );
+        errors.push({
+          shipmentId: shipment.id,
+          shipmentNumber: shipment.shipmentNumber,
+          error: error instanceof Error ? error.message : "خطأ غير معروف",
+        });
+      }
+    }
+
+    // تسجيل العملية
+    await prisma.logEntry.create({
+      data: {
+        type: "SHIPMENT_UPDATE",
+        action: "تحديث حالة شحنات متعددة",
+        details: `تم تحديث حالة ${results.length} شحنة${
+          results.length > 1 ? "" : ""
+        }. فشل في تحديث ${errors.length} شحنة${errors.length > 1 ? "" : ""}.`,
+        userId: user.id,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      },
+    });
+
+    res.json({
+      success: true,
+      message: `تم تحديث ${results.length} شحنة بنجاح${
+        errors.length > 0 ? `. فشل في تحديث ${errors.length} شحنة.` : ""
+      }`,
+      data: {
+        updated: results,
+        errors: errors,
+        totalProcessed: shipments.length,
+        successCount: results.length,
+        errorCount: errors.length,
+      },
+    });
+  } catch (error) {
+    console.error("Bulk update shipment status error:", error);
+    res.status(500).json({
+      success: false,
+      error: "خطأ في تحديث حالات الشحنات",
+    });
+  }
+});
+
 // PATCH /api/shipments/:id/status - تحديث حالة الشحنة
 router.patch("/:id/status", requireAuth, async (req, res) => {
   try {
@@ -659,6 +790,25 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
 
     // تحديث حالة الشحنة
     await shipmentService.updateShipmentStatus(id, statusId, user.id, notes);
+    // جلب اسم الحالة بدلاً من الـ id
+    const status = await prisma.shipmentStatus.findUnique({
+      where: { id: statusId },
+      select: { name: true },
+    });
+
+    await prisma.logEntry.create({
+      data: {
+        type: "SHIPMENT_UPDATE",
+        action: "تحديث حالة شحنة",
+        details: `تم تحديث حالة الشحنة ${shipment.shipmentNumber} إلى الحالة ${
+          status?.name ?? statusId
+        }`,
+        userId: user.id,
+        shipmentId: id,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      },
+    });
 
     res.json({
       success: true,

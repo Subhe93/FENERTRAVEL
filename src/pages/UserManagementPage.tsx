@@ -261,7 +261,7 @@ const UserManagementPage = () => {
               </div>
               <div>
                 <Label>الدور *</Label>
-                <Select
+                <Select dir='rtl'
                   value={formData.role}
                   onValueChange={(value: 'MANAGER' | 'BRANCH') => handleInputChange('role', value)}
                 >
@@ -277,7 +277,7 @@ const UserManagementPage = () => {
               {formData.role === 'BRANCH' && (
                 <div>
                   <Label>الفرع *</Label>
-                  <Select
+                  <Select dir="rtl"
                     value={formData.branchId}
                     onValueChange={handleBranchChange}
                   >
@@ -441,7 +441,7 @@ const UserManagementPage = () => {
             </div>
             <div>
               <Label>الدور *</Label>
-              <Select
+              <Select dir='rtl'
                 value={formData.role}
                 onValueChange={(value: 'MANAGER' | 'BRANCH') => handleInputChange('role', value)}
               >
@@ -457,7 +457,7 @@ const UserManagementPage = () => {
             {formData.role === 'BRANCH' && (
               <div>
                 <Label>الفرع *</Label>
-                <Select
+                <Select dir='rtl'
                   value={formData.branchId}
                   onValueChange={handleBranchChange}
                 >
