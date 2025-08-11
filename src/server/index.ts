@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import fileUpload from "express-fileupload";
 // import { PrismaClient } from "@prisma/client";
 import authRoutes from "./routes/auth";
 import shipmentsRoutes from "./routes/shipments";
@@ -8,6 +9,7 @@ import branchesRoutes from "./routes/branches";
 import countriesRoutes from "./routes/countries";
 import statusRoutes from "./routes/status";
 import logsRoutes from "./routes/logs";
+import backupRoutes from "./routes/backup";
 
 const app = express();
 const PORT = process.env.API_PORT || 5030;
@@ -21,6 +23,14 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(
+  fileUpload({
+    createParentPath: true,
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB max
+    },
+  }) as unknown as express.RequestHandler
+);
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -36,6 +46,7 @@ app.use("/api/branches", branchesRoutes);
 app.use("/api/countries", countriesRoutes);
 app.use("/api/status", statusRoutes);
 app.use("/api/logs", logsRoutes);
+app.use("/api/backup", backupRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {
@@ -52,7 +63,7 @@ app.use(
     err: Error,
     req: express.Request,
     res: express.Response,
-    next: express.NextFunction
+    _next: express.NextFunction
   ) => {
     console.error("Server Error:", err);
     res.status(500).json({

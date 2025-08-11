@@ -206,4 +206,5 @@ yarn db:studio
 
 للمساعدة أو الاستفسارات، يرجى التواصل مع فريق التطوير.
 
-npx prisma migrate dev --name add_flag_image_to_country
+npx prisma migrate dev --name add_flag_image_to_country - done in sever
+npx prisma migrate dev --name make_addresses_optional npx prisma generate

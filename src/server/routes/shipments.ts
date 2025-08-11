@@ -433,10 +433,8 @@ router.post("/", requireAuth, async (req, res) => {
     const requiredFields = [
       "senderName",
       "senderPhone",
-      "senderAddress",
       "recipientName",
       "recipientPhone",
-      "recipientAddress",
       "weight",
       "numberOfBoxes",
       "content",

@@ -101,13 +101,13 @@ model Shipment {
   senderName            String
   senderPhone           String
   senderEmail           String?
-  senderAddress         String
+  senderAddress         String?
   
   // بيانات المستلم
   recipientName         String
   recipientPhone        String
   recipientEmail        String?
-  recipientAddress      String
+  recipientAddress      String?
   
   // تفاصيل الشحنة
   weight                Decimal        @db.Decimal(8, 2)

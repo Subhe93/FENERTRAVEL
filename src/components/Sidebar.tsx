@@ -14,7 +14,8 @@ import {
   ChevronRight,
   Package,
   X,
-  Globe
+  Globe,
+  HardDrive
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -36,6 +37,7 @@ const Sidebar = ({ onClose }: SidebarProps) => {
     { name: t('nav.users'), href: '/users', icon: Users, allowedRoles: ['MANAGER'] },
     { name: t('nav.statusManagement'), href: '/status-management', icon: Settings, allowedRoles: ['MANAGER'] },
     { name: 'إدارة البلدان', href: '/countries', icon: Globe, allowedRoles: ['MANAGER'] },
+    { name: 'النسخ الاحتياطية', href: '/backup', icon: HardDrive, allowedRoles: ['MANAGER'] },
     { name: t('nav.logs'), href: '/logs', icon: FileText, allowedRoles: ['MANAGER', 'BRANCH'] }
   ];
 

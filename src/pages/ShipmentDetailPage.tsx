@@ -410,20 +410,20 @@ const ShipmentDetailPage = () => {
               </div>
             </div>
 
-            {shipment.shippingCost && (
+            {/* {shipment.shippingCost && (
               <div>
                 <div className="text-sm text-gray-500">تكلفة الشحن</div>
                 <div className="font-medium">{shipment.shippingCost} ريال</div>
               </div>
-            )}
+            )} */}
 
-            {shipment.paidAmount && (
+            {/* {shipment.paidAmount && (
               <div>
                 <div className="text-sm text-gray-500">المبلغ المدفوع</div>
                 <div className="font-medium">{shipment.paidAmount} ريال</div>
               </div>
-            )}
-
+            )} */}
+{/* 
             <div>
               <div className="text-sm text-gray-500">حالة الدفع</div>
               <div className="font-medium">
@@ -432,7 +432,7 @@ const ShipmentDetailPage = () => {
                  shipment.paymentStatus === 'PARTIAL' ? 'مدفوع جزئياً' :
                  shipment.paymentStatus === 'REFUNDED' ? 'مُسترد' : 'غير محدد'}
               </div>
-            </div>
+            </div> */}
           </div>
           
           {shipment.notes && (

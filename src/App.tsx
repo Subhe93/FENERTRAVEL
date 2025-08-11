@@ -15,6 +15,7 @@ import LogsPage from '@/pages/LogsPage';
 import PublicTrackingPage from '@/pages/PublicTrackingPage';
 import ShipmentTrackingPage from '@/pages/ShipmentTrackingPage';
 import CountryManagementPage from '@/pages/CountryManagementPage';
+import BackupManagementPage from '@/pages/BackupManagementPage';
 import InvoicePage from '@/pages/InvoicePage';
 import WaybillPage from '@/pages/WaybillPage';
 import EditShipmentPage from '@/pages/EditShipmentPage';
@@ -85,6 +86,13 @@ function App() {
                   <ProtectedRoute requiredRole="MANAGER">
                     <Layout>
                       <CountryManagementPage />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/backup" element={
+                  <ProtectedRoute requiredRole="MANAGER">
+                    <Layout>
+                      <BackupManagementPage />
                     </Layout>
                   </ProtectedRoute>
                 } />

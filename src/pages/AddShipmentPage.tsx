@@ -144,6 +144,7 @@ const AddShipmentPage = () => {
       if (field === 'branchId' && !formData.branchId) {
         newErrors.branchId = 'يرجى اختيار الفرع';
       }
+      // Required fields
       if (field === 'senderName' && !formData.senderName.trim()) {
         newErrors.senderName = 'يرجى إدخال اسم المرسل';
       }
@@ -159,7 +160,7 @@ const AddShipmentPage = () => {
       if (field === 'weight' && formData.weight <= 0) {
         newErrors.weight = 'يرجى إدخال وزن صحيح';
       }
-        if (field === 'content' && !formData.content.trim()) {
+      if (field === 'content' && !formData.content.trim()) {
         newErrors.content = 'يرجى إدخال محتوى الشحنة';
       }
       if (field === 'originCountryId' && !formData.originCountryId) {
@@ -171,6 +172,8 @@ const AddShipmentPage = () => {
       if (field === 'statusId' && !formData.statusId) {
         newErrors.statusId = 'يرجى اختيار حالة الشحنة';
       }
+      
+      // Optional fields (senderAddress, senderEmail, recipientAddress, recipientEmail, notes) are not validated
     });
 
     setErrors(newErrors);
@@ -190,7 +193,7 @@ const AddShipmentPage = () => {
   const handleSubmit = async () => {
     if (validateStep(currentStep)) {
       try {
-        // Remove branchName as it's not part of the Shipment type
+        // Remove branchName and other optional fields if they're empty
         const { branchName, ...shipmentData } = formData;
         const success = await createShipment(shipmentData);
         if (success) {
