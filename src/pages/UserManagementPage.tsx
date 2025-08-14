@@ -354,7 +354,7 @@ const UserManagementPage = () => {
                     {user.branchId ? (
                       <div className="flex items-center gap-2">
                         <Building2 className="w-4 h-4 text-gray-500" />
-                        {user.name}
+                        {user?.branch?.name}
                       </div>
                     ) : (
                       <span className="text-gray-400">-</span>
