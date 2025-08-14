@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { type Shipment } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,16 +25,20 @@ import {
   Globe,
   CreditCard,
   Calendar,
-  StickyNote
+  StickyNote,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 const EditShipmentPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { shipments, updateShipment, branches, statuses, countries } = useData();
+  const { shipments, updateShipment, branches, statuses, countries, getShipmentById } = useData();
   const { user } = useAuth();
 
-  const shipment = shipments.find(s => s.id === id);
+  // Local state for the shipment and loading
+  const [shipment, setShipment] = useState<Shipment | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
   const [formData, setFormData] = useState({
     branchId: '',
@@ -59,6 +64,47 @@ const EditShipmentPage = () => {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Load shipment data
+  useEffect(() => {
+    const loadShipment = async () => {
+      if (!id) {
+        setNotFound(true);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      setNotFound(false);
+
+      try {
+        // First, try to find in local shipments array
+        const localShipment = shipments.find(s => s.id === id);
+        if (localShipment) {
+          setShipment(localShipment);
+          setIsLoading(false);
+          return;
+        }
+
+        // If not found locally, fetch from API
+        const fetchedShipment = await getShipmentById(id);
+        if (fetchedShipment) {
+          setShipment(fetchedShipment);
+        } else {
+          setNotFound(true);
+        }
+      } catch (error) {
+        console.error('Error loading shipment:', error);
+        setNotFound(true);
+        toast.error('حدث خطأ أثناء تحميل بيانات الشحنة');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadShipment();
+  }, [id, getShipmentById]);
+
+  // Update form data when shipment is loaded
   useEffect(() => {
     if (shipment) {
       setFormData({
@@ -85,14 +131,60 @@ const EditShipmentPage = () => {
     }
   }, [shipment]);
 
-  if (!shipment) {
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <Loader2 className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-spin" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">جاري تحميل الشحنة...</h2>
+          <p className="text-gray-600">يرجى الانتظار</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not found state
+  if (notFound || !shipment) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">الشحنة غير موجودة</h2>
-          <p className="text-gray-600 mb-4">لم يتم العثور على الشحنة المطلوبة</p>
-          <Button onClick={() => navigate('/')}>العودة للرئيسية</Button>
+          <p className="text-gray-600 mb-4">لم يتم العثور على الشحنة المطلوبة أو حدث خطأ أثناء التحميل</p>
+          <div className="flex gap-3 justify-center">
+            <Button onClick={() => navigate('/')}>العودة للرئيسية</Button>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setNotFound(false);
+                setIsLoading(true);
+                // Trigger reload by changing state
+                const currentId = id;
+                if (currentId) {
+                  const loadShipment = async () => {
+                    try {
+                      const fetchedShipment = await getShipmentById(currentId);
+                      if (fetchedShipment) {
+                        setShipment(fetchedShipment);
+                      } else {
+                        setNotFound(true);
+                      }
+                    } catch (error) {
+                      console.error('Error reloading shipment:', error);
+                      setNotFound(true);
+                      toast.error('فشل في إعادة تحميل البيانات');
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  };
+                  loadShipment();
+                }
+              }}
+            >
+              إعادة المحاولة
+            </Button>
+          </div>
         </div>
       </div>
     );

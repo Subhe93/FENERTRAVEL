@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
@@ -5,35 +6,148 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
-import { ArrowLeft, Package, User, MapPin, Calendar, Phone, Mail, Weight, Box, FileText, Edit, QrCode } from 'lucide-react';
+import { ArrowLeft, Package, User, MapPin, Calendar, Phone, Mail, Weight, Box, FileText, Edit, QrCode, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import ShipmentBarcode from '@/components/ShipmentBarcode';
 import ShipmentStatusHistory from '@/components/ShipmentStatusHistory';
+import { type Shipment, type ShipmentHistory } from '@/lib/api-client';
+import { shipmentsAPI } from '@/lib/api';
 
 const ShipmentDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { shipments, statuses, updateShipmentStatus, getShipmentHistory } = useData();
+  const { statuses, updateShipmentStatus } = useData();
+  
+  // Local state for the shipment and loading
+  const [shipment, setShipment] = useState<Shipment | null>(null);
+  const [shipmentHistory, setShipmentHistory] = useState<ShipmentHistory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  const shipment = shipments.find(s => s.id === id);
+  // Load shipment data
+  useEffect(() => {
+    const loadShipment = async () => {
+      if (!id) {
+        setNotFound(true);
+        setIsLoading(false);
+        return;
+      }
 
-  if (!shipment) {
+      setIsLoading(true);
+      setNotFound(false);
+
+      try {
+        // استدعاء API لجلب بيانات الشحنة
+        const response = await shipmentsAPI.getShipmentById(id);
+        
+        if (response.success && response.data?.shipment) {
+          setShipment(response.data.shipment);
+          
+          // جلب سجل الشحنة
+          try {
+            const historyResponse = await shipmentsAPI.getShipmentHistory(id);
+            if (historyResponse.success && historyResponse.data?.history) {
+              setShipmentHistory(historyResponse.data.history);
+            }
+          } catch (historyError) {
+            console.error('Error fetching shipment history:', historyError);
+            // لا نعرض رسالة خطأ للمستخدم هنا لأن الشحنة نفسها تم جلبها بنجاح
+          }
+          
+          console.log('Shipment loaded successfully:', response.data.shipment);
+        } else {
+          console.log('Shipment not found:', id);
+          setNotFound(true);
+        }
+      } catch (error) {
+        console.error('Error loading shipment:', error);
+        setNotFound(true);
+        toast.error('حدث خطأ أثناء تحميل بيانات الشحنة');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadShipment();
+  }, [id]); // Remove dependencies to avoid unnecessary re-fetching
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <Loader2 className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-spin" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">جاري تحميل الشحنة...</h2>
+          <p className="text-gray-600">يرجى الانتظار</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not found state
+  if (notFound || !shipment) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">الشحنة غير موجودة</h2>
-          <p className="text-gray-600 mb-4">لم يتم العثور على الشحنة المطلوبة</p>
-          <Button onClick={() => navigate('/')}>العودة للرئيسية</Button>
+          <p className="text-gray-600 mb-4">لم يتم العثور على الشحنة المطلوبة أو حدث خطأ أثناء التحميل</p>
+          <div className="flex gap-3 justify-center">
+            <Button onClick={() => navigate('/')}>العودة للرئيسية</Button>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setNotFound(false);
+                setIsLoading(true);
+                // Trigger reload by changing state
+                const currentId = id;
+                if (currentId) {
+                  const loadShipment = async () => {
+                    try {
+                      const response = await shipmentsAPI.getShipmentById(currentId);
+                      if (response.success && response.data?.shipment) {
+                        setShipment(response.data.shipment);
+                        
+                        // جلب سجل الشحنة
+                        try {
+                          const historyResponse = await shipmentsAPI.getShipmentHistory(currentId);
+                          if (historyResponse.success && historyResponse.data?.history) {
+                            setShipmentHistory(historyResponse.data.history);
+                          }
+                        } catch (historyError) {
+                          console.error('Error fetching shipment history on retry:', historyError);
+                        }
+                      } else {
+                        setNotFound(true);
+                      }
+                    } catch (error) {
+                      console.error('Error reloading shipment:', error);
+                      setNotFound(true);
+                      toast.error('فشل في إعادة تحميل البيانات');
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  };
+                  loadShipment();
+                }
+              }}
+            >
+              إعادة المحاولة
+            </Button>
+          </div>
         </div>
       </div>
     );
   }
 
   const handleStatusChange = async (newStatusId: string) => {
+    if (!shipment) return;
+    
     try {
       const success = await updateShipmentStatus(shipment.id, newStatusId);
       if (success) {
+        // Update local state
+        setShipment(prev => prev ? { ...prev, statusId: newStatusId } : null);
         toast.success('تم تحديث حالة الشحنة بنجاح');
       } else {
         toast.error('فشل في تحديث حالة الشحنة');
@@ -63,7 +177,7 @@ const ShipmentDetailPage = () => {
     }
   };
 
-  const shipmentHistory = getShipmentHistory(shipment.id);
+  // shipmentHistory is now managed as state and fetched from API
 
   // Get enriched data
   const currentStatus = statuses.find(s => s.id === shipment.statusId);
@@ -269,6 +383,7 @@ const ShipmentDetailPage = () => {
       <ShipmentStatusHistory
         history={shipmentHistory}
         getStatusColor={getStatusColor}
+        showDetails={true}
       />
 
       {/* Sender and Recipient Information */}

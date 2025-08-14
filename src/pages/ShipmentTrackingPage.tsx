@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ShipmentStatusHistory from '@/components/ShipmentStatusHistory';
+import { shipmentsAPI } from '@/lib/api';
 import { 
   Package, 
   Search, 
@@ -37,8 +38,9 @@ const ShipmentTrackingPage = () => {
   const [shipmentNumber, setShipmentNumber] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [foundShipment, setFoundShipment] = useState<Shipment | null>(null);
-  const { getShipmentByNumber, statuses, getShipmentHistory } = useData();
-  const { language, setLanguage } = useLanguage();
+  const [shipmentHistory, setShipmentHistory] = useState<ShipmentHistory[]>([]);
+  const { statuses } = useData();
+  const { language } = useLanguage();
 
   const handleSearch = async () => {
     if (!shipmentNumber.trim()) {
@@ -48,18 +50,54 @@ const ShipmentTrackingPage = () => {
 
     setIsSearching(true);
     
-    // Simulate API call delay
-    setTimeout(() => {
-      const shipment = getShipmentByNumber(shipmentNumber.trim());
-      if (shipment) {
-        setFoundShipment(shipment);
+    try {
+      // استدعاء API الحقيقي لجلب معلومات الشحنة
+      const response = await shipmentsAPI.trackShipment(shipmentNumber.trim());
+      
+      if (response.success && response.data?.shipment) {
+        setFoundShipment(response.data.shipment);
+        
+        // جلب تاريخ الشحنة إذا كان لدينا معرف الشحنة
+        if (response.data.shipment.id) {
+          try {
+            const historyResponse = await shipmentsAPI.getShipmentHistory(response.data.shipment.id);
+            if (historyResponse.success && historyResponse.data?.history) {
+              setShipmentHistory(historyResponse.data.history);
+            } else {
+              // إذا لم نجد تاريخ، نستخدم trackingEvents إن وجدت
+              if (response.data.shipment.trackingEvents) {
+                const mockHistory = response.data.shipment.trackingEvents.map((event: any, index: number) => ({
+                  id: `tracking-${index}`,
+                  action: 'تحديث الحالة',
+                  timestamp: event.eventTime,
+                  statusId: event.statusId,
+                  status: event.status,
+                  notes: event.description,
+                  location: event.location
+                }));
+                setShipmentHistory(mockHistory);
+              }
+            }
+          } catch (historyError) {
+            console.error('Error fetching shipment history:', historyError);
+            // لا نعرض رسالة خطأ للمستخدم هنا لأن الشحنة نفسها تم جلبها بنجاح
+          }
+        }
+        
         toast.success(language === 'ar' ? 'تم العثور على الشحنة' : 'Shipment found');
       } else {
         setFoundShipment(null);
+        setShipmentHistory([]);
         toast.error(language === 'ar' ? 'لم يتم العثور على الشحنة' : 'Shipment not found');
       }
+    } catch (error) {
+      console.error('Error tracking shipment:', error);
+      setFoundShipment(null);
+      setShipmentHistory([]);
+      toast.error(language === 'ar' ? 'حدث خطأ أثناء البحث عن الشحنة' : 'Error occurred while searching for shipment');
+    } finally {
       setIsSearching(false);
-    }, 1000);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -82,10 +120,24 @@ const ShipmentTrackingPage = () => {
 
   const getStatusProgress = (status: string) => {
     switch (status) {
+      case 'تم الارسال':
+        return 10;
+      case 'ملغي':
+        return 0;
+      case 'قيد المراجعة':
+        return 25;
       case 'في المستودع':
         return 25;
+      case 'متوجه نحو كردستان العراق':
+        return 50;
+      case 'متوجه نحو سوريا':
+        return 50;
       case 'في الطريق':
         return 75;
+      case 'وصلت للوجهة':
+        return 90;
+      case 'تم الوصول بنجاح':
+        return 100;
       case 'تم التسليم':
         return 100;
       default:
@@ -93,7 +145,7 @@ const ShipmentTrackingPage = () => {
     }
   };
 
-  const shipmentHistory: ShipmentHistory[] = foundShipment ? getShipmentHistory(foundShipment.id) : [];
+  // shipmentHistory is now managed as state and fetched from API
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
@@ -335,6 +387,7 @@ const ShipmentTrackingPage = () => {
                 history={shipmentHistory}
                 getStatusColor={(statusId) => getStatusColor(statuses.find(s => s.id === statusId)?.name || '')}
                 showCard={true}
+                showDetails={false}
               />
             </div>
 

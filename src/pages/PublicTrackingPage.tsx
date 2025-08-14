@@ -7,12 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Package, Search, Truck, CheckCircle, Clock, MapPin, Calendar, Phone, User } from 'lucide-react';
 import { toast } from 'sonner';
+import { shipmentsAPI } from '@/lib/api';
 
 const PublicTrackingPage = () => {
   const [shipmentNumber, setShipmentNumber] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [foundShipment, setFoundShipment] = useState(null);
-  const { getShipmentByNumber, statuses } = useData();
+  const { statuses } = useData();
   const { language, setLanguage } = useLanguage();
 
   const handleSearch = async () => {
@@ -23,18 +24,24 @@ const PublicTrackingPage = () => {
 
     setIsSearching(true);
     
-    // Simulate API call delay
-    setTimeout(() => {
-      const shipment = getShipmentByNumber(shipmentNumber.trim());
-      if (shipment) {
-        setFoundShipment(shipment);
+    try {
+      // استدعاء API الحقيقي لجلب معلومات الشحنة
+      const response = await shipmentsAPI.trackShipment(shipmentNumber.trim());
+      
+      if (response.success && response.data?.shipment) {
+        setFoundShipment(response.data.shipment);
         toast.success(language === 'ar' ? 'تم العثور على الشحنة' : 'Shipment found');
       } else {
         setFoundShipment(null);
         toast.error(language === 'ar' ? 'لم يتم العثور على الشحنة' : 'Shipment not found');
       }
+    } catch (error) {
+      console.error('Error tracking shipment:', error);
+      setFoundShipment(null);
+      toast.error(language === 'ar' ? 'حدث خطأ أثناء البحث عن الشحنة' : 'Error occurred while searching for shipment');
+    } finally {
       setIsSearching(false);
-    }, 1000);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -140,18 +147,18 @@ const PublicTrackingPage = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-3">
-                    {getStatusIcon(foundShipment.status)}
+                    {getStatusIcon(foundShipment.statusName || foundShipment.status?.name || foundShipment.status)}
                     {language === 'ar' ? 'حالة الشحنة' : 'Shipment Status'}
                   </CardTitle>
                   <Badge 
                     className="text-sm px-3 py-1"
                     style={{ 
-                      backgroundColor: getStatusColor(foundShipment.status) + '20',
-                      color: getStatusColor(foundShipment.status),
-                      borderColor: getStatusColor(foundShipment.status)
+                      backgroundColor: getStatusColor(foundShipment.statusName || foundShipment.status?.name || foundShipment.status) + '20',
+                      color: getStatusColor(foundShipment.statusName || foundShipment.status?.name || foundShipment.status),
+                      borderColor: getStatusColor(foundShipment.statusName || foundShipment.status?.name || foundShipment.status)
                     }}
                   >
-                    {foundShipment.status}
+                    {foundShipment.statusName || foundShipment.status?.name || foundShipment.status}
                   </Badge>
                 </div>
               </CardHeader>
@@ -163,7 +170,7 @@ const PublicTrackingPage = () => {
                       <div className="text-sm text-gray-500">
                         {language === 'ar' ? 'الفرع' : 'Branch'}
                       </div>
-                      <div className="font-medium">{foundShipment.branchName}</div>
+                      <div className="font-medium">{foundShipment.branchName || foundShipment.branch?.name || 'غير محدد'}</div>
                     </div>
                   </div>
                   
@@ -260,11 +267,11 @@ const PublicTrackingPage = () => {
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">{language === 'ar' ? 'من' : 'From'}</div>
-                    <div className="font-medium">{foundShipment.originCountry}</div>
+                    <div className="font-medium">{foundShipment.originCountry?.name || foundShipment.originCountry}</div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">{language === 'ar' ? 'إلى' : 'To'}</div>
-                    <div className="font-medium">{foundShipment.destinationCountry}</div>
+                    <div className="font-medium">{foundShipment.destinationCountry?.name || foundShipment.destinationCountry}</div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">{language === 'ar' ? 'المحتوى' : 'Content'}</div>

@@ -14,6 +14,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset",
     "db:seed": "tsx prisma/seed.ts",
+    "db:import-csv": "tsx prisma/import-csv.ts",
+    "db:prepare-import": "tsx prisma/prepare-import.ts",
     "db:studio": "prisma studio",
     "api:dev": "tsx watch src/server/index.ts",
     "api:build": "tsc --project tsconfig.server.json && node build-server.cjs",

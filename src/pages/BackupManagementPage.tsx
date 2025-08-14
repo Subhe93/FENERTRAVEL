@@ -59,6 +59,11 @@ const BackupManagementPage = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [progress, setProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // حالة استيراد CSV
+  const [isImportingCSV, setIsImportingCSV] = useState(false);
+  const [selectedCSVFile, setSelectedCSVFile] = useState<File | null>(null);
+  const csvFileInputRef = useRef<HTMLInputElement>(null);
 
   // جلب إحصائيات قاعدة البيانات
   const fetchDatabaseStats = async () => {
@@ -215,6 +220,80 @@ const BackupManagementPage = () => {
       setMessage({ type: 'error', text: 'خطأ في الاتصال بالخادم' });
     } finally {
       setIsImporting(false);
+      setProgress(0);
+    }
+  };
+
+  // اختيار ملف CSV
+  const handleCSVFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      setMessage({ type: 'error', text: 'يجب اختيار ملف من نوع CSV' });
+      return;
+    }
+
+    setSelectedCSVFile(file);
+    setMessage({ type: 'info', text: `تم اختيار ملف: ${file.name}` });
+  };
+
+  // استيراد ملف CSV
+  const handleCSVImport = async () => {
+    if (!selectedCSVFile) {
+      setMessage({ type: 'error', text: 'يرجى اختيار ملف CSV أولاً' });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'هل أنت متأكد من استيراد البيانات من ملف CSV؟ سيتم إضافة الشحنات الجديدة إلى قاعدة البيانات.'
+    );
+
+    if (!confirmed) return;
+
+    setIsImportingCSV(true);
+    setMessage(null);
+    setProgress(0);
+
+    try {
+      // محاكاة التقدم
+      const progressInterval = setInterval(() => {
+        setProgress(prev => Math.min(prev + 10, 90));
+      }, 300);
+
+      const formData = new FormData();
+      formData.append('csvFile', selectedCSVFile);
+
+      const response = await fetch('/api/backup/import-csv', {
+        method: 'POST',
+        body: formData
+      });
+
+      clearInterval(progressInterval);
+      setProgress(100);
+
+      const result = await response.json();
+      
+      if (result.success) {
+        const details = result.importedData.summary?.details?.join(' | ') || '';
+        setMessage({ 
+          type: 'success', 
+          text: `${result.importedData.summary?.message || 'تم الاستيراد بنجاح'}\n${details}` 
+        });
+        setSelectedCSVFile(null);
+        if (csvFileInputRef.current) {
+          csvFileInputRef.current.value = '';
+        }
+        // تحديث الإحصائيات
+        fetchDatabaseStats();
+      } else {
+        setMessage({ type: 'error', text: result.error || 'فشل في استيراد ملف CSV' });
+      }
+    } catch (error) {
+      console.error('خطأ في استيراد CSV:', error);
+      setMessage({ type: 'error', text: 'خطأ في الاتصال بالخادم' });
+    } finally {
+      setIsImportingCSV(false);
       setProgress(0);
     }
   };
@@ -493,6 +572,105 @@ const BackupManagementPage = () => {
                     }
                   }}
                   disabled={isImporting || isExporting}
+                  variant="outline"
+                >
+                  إلغاء
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* استيراد ملف CSV */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileArchive className="w-5 h-5" />
+            استيراد بيانات من ملف CSV
+          </CardTitle>
+          <CardDescription>
+            استيراد الشحنات من ملف CSV مُصدّر من النظام القديم
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            {/* معلومات مهمة */}
+            <Alert className="border-blue-200 bg-blue-50">
+              <Info className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-700">
+                <strong>ملاحظة:</strong> هذه الميزة مخصصة لاستيراد البيانات من ملفات CSV المُصدّرة من أنظمة أخرى. 
+                سيتم إنشاء البلدان والحالات المطلوبة تلقائياً إذا لم تكن موجودة.
+              </AlertDescription>
+            </Alert>
+
+            {/* اختيار الملف */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  اختر ملف CSV
+                </label>
+                <input
+                  ref={csvFileInputRef}
+                  type="file"
+                  accept=".csv"
+                  onChange={handleCSVFileSelect}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                />
+                {selectedCSVFile && (
+                  <p className="text-sm text-green-600 mt-2">
+                    ✓ تم اختيار: {selectedCSVFile.name}
+                  </p>
+                )}
+              </div>
+
+              {/* متطلبات الملف */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="flex items-start gap-2">
+                  <Info className="w-5 h-5 text-gray-600 mt-0.5" />
+                  <div className="text-sm text-gray-700">
+                    <p className="font-medium mb-2">متطلبات ملف CSV:</p>
+                    <ul className="list-disc list-inside space-y-1 text-xs">
+                      <li>يجب أن يحتوي على الأعمدة الأساسية: Shipment Title, Shipper Name, Receiver Name</li>
+                      <li>البيانات المطلوبة: Origin, Destination, Weight, Packages</li>
+                      <li>التواريخ بصيغة YYYY-MM-DD أو MM/DD/YYYY</li>
+                      <li>الترميز: UTF-8 لدعم النصوص العربية</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* شريط التقدم */}
+              {isImportingCSV && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>جاري استيراد البيانات...</span>
+                    <span>{progress}%</span>
+                  </div>
+                  <Progress value={progress} className="w-full" />
+                </div>
+              )}
+
+              {/* أزرار التحكم */}
+              <div className="flex gap-4">
+                <Button 
+                  onClick={handleCSVImport}
+                  disabled={!selectedCSVFile || isImportingCSV || isImporting || isExporting}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  size="lg"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {isImportingCSV ? 'جاري الاستيراد...' : 'استيراد ملف CSV'}
+                </Button>
+                
+                <Button 
+                  onClick={() => {
+                    setSelectedCSVFile(null);
+                    if (csvFileInputRef.current) {
+                      csvFileInputRef.current.value = '';
+                    }
+                  }}
+                  disabled={isImportingCSV || isImporting || isExporting}
                   variant="outline"
                 >
                   إلغاء

@@ -21,6 +21,7 @@ import WaybillPage from '@/pages/WaybillPage';
 import EditShipmentPage from '@/pages/EditShipmentPage';
 import LoginPage from '@/pages/LoginPage';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import ProtectedPageWrapper from '@/components/ProtectedPageWrapper';
 
 function App() {
   return (
@@ -35,9 +36,11 @@ function App() {
                 <Route path="/tracking" element={<ShipmentTrackingPage />} />
                 <Route path="/" element={
                   <ProtectedRoute>
-                    <Layout>
-                      <HomePage />
-                    </Layout>
+                    <ProtectedPageWrapper>
+                      <Layout>
+                        <HomePage />
+                      </Layout>
+                    </ProtectedPageWrapper>
                   </ProtectedRoute>
                 } />
                 <Route path="/add-shipment" element={
@@ -49,16 +52,20 @@ function App() {
                 } />
                 <Route path="/shipment/:id" element={
                   <ProtectedRoute>
-                    <Layout>
-                      <ShipmentDetailPage />
-                    </Layout>
+                    <ProtectedPageWrapper>
+                      <Layout>
+                        <ShipmentDetailPage />
+                      </Layout>
+                    </ProtectedPageWrapper>
                   </ProtectedRoute>
                 } />
                 <Route path="/shipment/:id/edit" element={
                   <ProtectedRoute>
-                    <Layout>
-                      <EditShipmentPage />
-                    </Layout>
+                    <ProtectedPageWrapper>
+                      <Layout>
+                        <EditShipmentPage />
+                      </Layout>
+                    </ProtectedPageWrapper>
                   </ProtectedRoute>
                 } />
                 <Route path="/branches" element={
@@ -105,12 +112,16 @@ function App() {
                 } />
                 <Route path="/invoice/:id" element={
                   <ProtectedRoute>
-                    <InvoicePage />
+                    <ProtectedPageWrapper>
+                      <InvoicePage />
+                    </ProtectedPageWrapper>
                   </ProtectedRoute>
                 } />
                 <Route path="/waybill/:id" element={
                   <ProtectedRoute>
-                    <WaybillPage />
+                    <ProtectedPageWrapper>
+                      <WaybillPage />
+                    </ProtectedPageWrapper>
                   </ProtectedRoute>
                 } />
               </Routes>

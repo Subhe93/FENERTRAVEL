@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useReturnPath } from '@/hooks/useReturnPath';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,12 +13,39 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { getSavedPath, clearSavedPath } = useReturnPath();
 
+  // انتظار انتهاء التحقق من المصادقة
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="mx-auto w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center mb-4">
+            <Package className="w-8 h-8 text-white animate-pulse" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">جاري التحقق...</h2>
+          <p className="text-gray-600">يرجى الانتظار</p>
+        </div>
+      </div>
+    );
+  }
+
+  // إعادة التوجيه للصفحة المطلوبة إذا كان المستخدم مسجل الدخول
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    // أولوية للمسار من state، ثم المسار المحفوظ، وأخيراً الصفحة الرئيسية
+    const stateFrom = (location.state as { from?: { pathname: string } })?.from?.pathname;
+    const savedPath = getSavedPath();
+    const redirectTo = stateFrom || savedPath || '/';
+    
+    // مسح المسار المحفوظ بعد الاستخدام
+    if (savedPath) {
+      clearSavedPath();
+    }
+    
+    return <Navigate to={redirectTo} replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,8 +57,16 @@ const LoginPage = () => {
       if (success) {
         toast.success('تم تسجيل الدخول بنجاح');
         // العودة إلى الصفحة التي كان المستخدم عليها قبل تسجيل الدخول
-        const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
-        navigate(from, { replace: true });
+        const stateFrom = (location.state as { from?: { pathname: string } })?.from?.pathname;
+        const savedPath = getSavedPath();
+        const redirectTo = stateFrom || savedPath || '/';
+        
+        // مسح المسار المحفوظ بعد الاستخدام
+        if (savedPath) {
+          clearSavedPath();
+        }
+        
+        navigate(redirectTo, { replace: true });
       } else {
         toast.error('بيانات الدخول غير صحيحة');
       }

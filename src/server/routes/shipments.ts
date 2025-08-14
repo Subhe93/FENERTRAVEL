@@ -395,18 +395,39 @@ router.get("/track/:number", async (req, res) => {
       });
     }
 
-    // إرجاع بيانات محدودة للتتبع العام
+    // إرجاع بيانات محدودة للتتبع العام مع معلومات إضافية
     const publicData = {
+      id: shipment.id,
       shipmentNumber: shipment.shipmentNumber,
       status: shipment.status,
+      statusName: shipment.status?.name,
+      statusId: shipment.statusId,
       originCountry: shipment.originCountry,
       destinationCountry: shipment.destinationCountry,
       expectedDeliveryDate: shipment.expectedDeliveryDate,
+      receivingDate: shipment.receivingDate,
+      weight: shipment.weight,
+      numberOfBoxes: shipment.numberOfBoxes,
+      content: shipment.content,
+      senderName: shipment.senderName,
+      senderPhone: shipment.senderPhone,
+      senderAddress: shipment.senderAddress,
+      senderEmail: shipment.senderEmail,
+      recipientName: shipment.recipientName,
+      recipientPhone: shipment.recipientPhone,
+      recipientAddress: shipment.recipientAddress,
+      recipientEmail: shipment.recipientEmail,
+      branch: shipment.branch,
+      branchName: shipment.branch?.name,
+      notes: shipment.notes,
+      paymentMethod: shipment.paymentMethod,
+      createdAt: shipment.createdAt,
       trackingEvents: shipment.trackingEvents?.map((event) => ({
         description: event.description,
         location: event.location,
         eventTime: event.eventTime,
         statusId: event.statusId,
+        status: event.status,
       })),
     };
 

@@ -1,31 +1,34 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Activity, Calendar, User, History } from 'lucide-react';
+import { Activity, Calendar, History } from 'lucide-react';
 import { type ShipmentHistory } from '@/lib/api-client';
 
 interface ShipmentStatusHistoryProps {
-  history: ShipmentHistory[];
+  history: (ShipmentHistory & { location?: string })[];
   getStatusColor?: (statusId: string) => string;
   className?: string;
   showCard?: boolean;
+  showDetails?: boolean;
 }
 
 const ShipmentStatusHistory: React.FC<ShipmentStatusHistoryProps> = ({
   history,
   getStatusColor = () => '#6b7280',
   className = '',
-  showCard = true
+  showCard = true,
+  showDetails = true
 }) => {
-  // Filter only status-related changes
+  // Filter only status-related changes and include tracking events
   const statusHistory = history.filter(h => 
     h.action === 'تحديث الحالة' || 
     h.action === 'STATUS_UPDATE' || 
     h.field === 'status' || 
     h.field === 'statusId' ||
     h.action?.toLowerCase().includes('status') ||
-    h.action?.includes('حالة')
-  );
+    h.action?.includes('حالة') ||
+    h.id?.startsWith('tracking-') // Include converted tracking events
+  ).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   const HistoryContent = () => (
     <div className="space-y-4">
@@ -84,8 +87,17 @@ const ShipmentStatusHistory: React.FC<ShipmentStatusHistoryProps> = ({
                 </div>
               )} */}
               
+              {/* Location if available */}
+              {showDetails && historyItem.location && (
+                <div className="mb-2 p-2 bg-green-50 border border-green-200 rounded">
+                  <div className="text-sm text-green-800">
+                    <span className="font-medium">الموقع:</span> {historyItem.location}
+                  </div>
+                </div>
+              )}
+
               {/* Notes if available */}
-              {historyItem.notes && (
+              {showDetails && historyItem.notes &&  (
                 <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded">
                   <div className="text-sm text-blue-800">
                     <span className="font-medium">ملاحظة:</span> {historyItem.notes}
