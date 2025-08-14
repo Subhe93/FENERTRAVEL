@@ -427,7 +427,9 @@ router.get("/track/:number", async (req, res) => {
         location: event.location,
         eventTime: event.eventTime,
         statusId: event.statusId,
-        status: event.status,
+        status: (event as any)?.status
+          ? { name: (event as any).status.name }
+          : undefined,
       })),
     };
 
