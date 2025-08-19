@@ -1,6 +1,11 @@
 import express from "express";
 import AdmZip from "adm-zip";
-import { PrismaClient, PaymentMethod, PaymentStatus, CountryType } from "@prisma/client";
+import {
+  PrismaClient,
+  PaymentMethod,
+  PaymentStatus,
+  CountryType,
+} from "@prisma/client";
 import { UploadedFile } from "express-fileupload";
 import * as fs from "fs";
 import * as path from "path";
@@ -532,164 +537,187 @@ router.get("/stats", async (req, res) => {
 
 // دوال مساعدة لمعالجة CSV
 function parseCSV(csvContent: string): any[] {
-  const lines = csvContent.split('\n').filter(line => line.trim());
+  const lines = csvContent.split("\n").filter((line) => line.trim());
   if (lines.length === 0) return [];
-  
+
   // تحليل السطر الأول للحصول على الرؤوس
   const headerValues = parseCSVLine(lines[0]);
-  const headers = headerValues.map(h => h.replace(/"/g, '').trim());
-  
+  const headers = headerValues.map((h) => h.replace(/"/g, "").trim());
+
   return lines.slice(1).map((line, lineIndex) => {
     const values = parseCSVLine(line);
     const record: any = {};
-    
+
     // ربط القيم بالرؤوس
     headers.forEach((header, index) => {
-      record[header] = values[index] || '';
+      record[header] = values[index] || "";
     });
-    
+
     // إضافة الأعمدة الإضافية للـ History (بعد العمود 32)
     if (values.length > 32) {
       const historyColumns: string[] = [];
       for (let i = 32; i < values.length; i++) {
-        if (values[i] && values[i].trim() !== '') {
+        if (values[i] && values[i].trim() !== "") {
           historyColumns.push(values[i].trim());
         }
       }
-      record['HistoryColumns'] = historyColumns;
+      record["HistoryColumns"] = historyColumns;
     }
-    
+
     return record;
   });
 }
 
 function parseCSVLine(line: string): string[] {
   const result: string[] = [];
-  let current = '';
+  let current = "";
   let inQuotes = false;
-  
+
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
-    
+
     if (char === '"') {
       inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
+    } else if (char === "," && !inQuotes) {
       result.push(current.trim());
-      current = '';
+      current = "";
     } else {
       current += char;
     }
   }
-  
+
   result.push(current.trim());
   return result;
 }
 
 function cleanCSVData(record: any) {
   // الحصول على أرقام الهاتف الصحيحة (هناك عمودان للهاتف)
-  const phoneColumns = Object.keys(record).filter(key => key.includes('Phone Number'));
-  const shipperPhone = phoneColumns[0] ? record[phoneColumns[0]] : '';
-  const receiverPhone = phoneColumns[1] ? record[phoneColumns[1]] : phoneColumns[0] ? record[phoneColumns[0]] : '';
+  // const phoneColumns = Object.keys(record).filter((key) =>
+  //   key.includes("Phone Number")
+  // );
+  // const shipperPhone = phoneColumns[0] ? record[phoneColumns[0]] : "";
+  // const receiverPhone = phoneColumns[1] ? record[phoneColumns[1]] : "";
 
   // جمع جميع بيانات History من العمود الأساسي والأعمدة الإضافية
   const allHistoryData: string[] = [];
-  
+
   // إضافة History الأساسي إذا كان موجوداً
-  if (record['History'] && record['History'].trim() !== '') {
-    allHistoryData.push(record['History'].trim());
+  if (record["History"] && record["History"].trim() !== "") {
+    allHistoryData.push(record["History"].trim());
   }
-  
+
   // إضافة الأعمدة الإضافية للـ History
-  if (record['HistoryColumns'] && Array.isArray(record['HistoryColumns'])) {
-    allHistoryData.push(...record['HistoryColumns']);
+  if (record["HistoryColumns"] && Array.isArray(record["HistoryColumns"])) {
+    allHistoryData.push(...record["HistoryColumns"]);
   }
 
   return {
-    shipmentId: record['ShipmentID']?.toString() || '',
-    shipmentTitle: record['Shipment Title'] || '',
-    shipperName: record['Shipper Name'] || '',
-    shipperPhone: shipperPhone || '',
-    shipperAddress: record['Shipper Address'] || '',
-    shipperEmail: record['Shipper Email'] || '',
-    receiverName: record['Receiver Name'] || '',
-    receiverPhone: receiverPhone || '',
-    receiverAddress: record['Receiver Address'] || '',
-    receiverEmail: record['Receiver Email'] || '',
-    origin: record['Origin'] || '',
-    destination: record['Destination'] || '',
-    pickupDate: record['Pickup Date'] || '',
-    departureTime: record['Departure Time'] || '',
-    pickupTime: record['Pickup Time'] || '',
-    expectedDeliveryDate: record['Expected Delivery Date'] || '',
-    status: record['Shipment Status'] || '',
-    weight: parseFloat(record['Weight']?.replace(',', '.') || '0') || 0,
-    packages: parseInt(record['Packages'] || '1') || 1,
-    product: record['Product'] || '',
-    paymentMode: record['Payment Mode'] || 'كاش',
-    comments: record['Comments'] || '',
-    history: record['History'] || '',
-    allHistoryData: allHistoryData // جميع بيانات History مجمعة
+    shipmentId: record["ShipmentID"]?.toString() || "",
+    shipmentTitle: record["Shipment Title"] || "",
+    shipperName: record["Shipper Name"] || "",
+    shipperPhone: record["Phone Number"] || "",
+    shipperAddress: record["Shipper Address"] || "",
+    shipperEmail: record["Shipper Email"] || "",
+    receiverName: record["Receiver Name"] || "",
+    receiverPhone: record["Phone Number1"] || "",
+    receiverAddress: record["Receiver Address"] || "",
+    receiverEmail: record["Receiver Email"] || "",
+    origin: record["Origin"] || "",
+    destination: record["Destination"] || "",
+    pickupDate: record["Pickup Date"] || "",
+    departureTime: record["Departure Time"] || "",
+    pickupTime: record["Pickup Time"] || "",
+    expectedDeliveryDate: record["Expected Delivery Date"] || "",
+    status: record["Shipment Status"] || "",
+    weight: parseFloat(record["Weight"]?.replace(",", ".") || "0") || 0,
+    packages: parseInt(record["Packages"] || "1") || 1,
+    product: record["Product"] || "",
+    paymentMode: record["Payment Mode"] || "كاش",
+    comments: record["Comments"] || "",
+    history: record["History"] || "",
+    allHistoryData: allHistoryData, // جميع بيانات History مجمعة
   };
 }
 
 function convertPaymentMethod(paymentMode: string): PaymentMethod {
   const mode = paymentMode.toLowerCase().trim();
-  if (mode.includes('كاش') || mode.includes('cash')) {
+  if (mode.includes("كاش") || mode.includes("cash")) {
     return PaymentMethod.CASH_ON_DELIVERY;
-  } else if (mode.includes('كرت') || mode.includes('card')) {
+  } else if (mode.includes("كرت") || mode.includes("card")) {
     return PaymentMethod.CREDIT_CARD;
   }
   return PaymentMethod.CASH_ON_DELIVERY;
 }
 
 function parseCSVDate(dateString: string): Date | null {
-  if (!dateString || dateString.trim() === '') return null;
-  
+  if (!dateString || dateString.trim() === "") return null;
+
   const cleanDate = dateString.trim();
-  
+
   try {
     // محاولة تحليل التاريخ مباشرة
     const directDate = new Date(cleanDate);
     if (!isNaN(directDate.getTime())) {
       return directDate;
     }
-    
+
     // محاولة تحليل التاريخ بصيغة YYYY-MM-DD
     if (cleanDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      const parts = cleanDate.split('-');
+      const parts = cleanDate.split("-");
       const year = parseInt(parts[0]);
       const month = parseInt(parts[1]) - 1; // الشهر يبدأ من 0
       const day = parseInt(parts[2]);
-      
-      if (year >= 1900 && year <= 2100 && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+
+      if (
+        year >= 1900 &&
+        year <= 2100 &&
+        month >= 0 &&
+        month <= 11 &&
+        day >= 1 &&
+        day <= 31
+      ) {
         return new Date(year, month, day);
       }
     }
-    
+
     // محاولة تحليل التاريخ بصيغة MM/DD/YYYY
     if (cleanDate.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-      const parts = cleanDate.split('/');
+      const parts = cleanDate.split("/");
       const month = parseInt(parts[0]) - 1; // الشهر يبدأ من 0
       const day = parseInt(parts[1]);
       const year = parseInt(parts[2]);
-      
-      if (year >= 1900 && year <= 2100 && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+
+      if (
+        year >= 1900 &&
+        year <= 2100 &&
+        month >= 0 &&
+        month <= 11 &&
+        day >= 1 &&
+        day <= 31
+      ) {
         return new Date(year, month, day);
       }
     }
-    
+
     // محاولة تحليل التاريخ بصيغة DD/MM/YYYY
     if (cleanDate.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-      const parts = cleanDate.split('/');
+      const parts = cleanDate.split("/");
       const day = parseInt(parts[0]);
       const month = parseInt(parts[1]) - 1; // الشهر يبدأ من 0
       const year = parseInt(parts[2]);
-      
-      if (year >= 1900 && year <= 2100 && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+
+      if (
+        year >= 1900 &&
+        year <= 2100 &&
+        month >= 0 &&
+        month <= 11 &&
+        day >= 1 &&
+        day <= 31
+      ) {
         return new Date(year, month, day);
       }
     }
-    
+
     console.warn(`تعذر تحليل التاريخ: ${cleanDate}`);
     return null;
   } catch (error) {
@@ -709,68 +737,83 @@ function parseAllHistoryFields(allHistoryData: string[]): Array<{
     user: string;
     timestamp: Date;
   }> = [];
-  
+
   if (!allHistoryData || allHistoryData.length === 0) return allHistoryEntries;
-  
+
   // معالجة كل حقل History على حدة
   allHistoryData.forEach((historyString, index) => {
-    if (!historyString || historyString.trim() === '') return;
-    
+    if (!historyString || historyString.trim() === "") return;
+
     try {
       const cleanHistory = historyString.trim();
-      const parts = cleanHistory.split('|').map(part => part.trim());
-      
+      const parts = cleanHistory.split("|").map((part) => part.trim());
+
       // البحث عن النمط: [فارغ] | [فارغ] | [فارغ] | [مستخدم] | [رقم] | [فارغ] | [حالة]
       // مثال: " |  |  | feneradmi | 1 |  | قيد المراجعة"
-      let user = 'مستخدم النظام';
-      let status = '';
-      
+      let user = "مستخدم النظام";
+      let status = "";
+
       // البحث عن المستخدم والحالة
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i];
-        
+
         // إذا وجدنا اسم مستخدم (يحتوي على أحرف ولا يحتوي على كلمات الحالة)
-        if (part && part !== '' && part !== '1' && 
-            !part.includes('المراجعة') && !part.includes('متوجه') && 
-            !part.includes('تم') && !part.includes('الوصول') && 
-            !part.includes('الارسال') && isNaN(parseInt(part))) {
+        if (
+          part &&
+          part !== "" &&
+          part !== "1" &&
+          !part.includes("المراجعة") &&
+          !part.includes("متوجه") &&
+          !part.includes("تم") &&
+          !part.includes("الوصول") &&
+          !part.includes("الارسال") &&
+          isNaN(parseInt(part))
+        ) {
           user = part;
         }
-        
+
         // إذا وجدنا حالة (تحتوي على كلمات الحالة العربية)
-        if (part && part !== '' && (
-            part.includes('المراجعة') || part.includes('متوجه') || 
-            part.includes('تم') || part.includes('الوصول') || 
-            part.includes('الارسال') || part.includes('التسليم') ||
-            part.includes('ملغي') || part.includes('مؤجل')
-        )) {
+        if (
+          part &&
+          part !== "" &&
+          (part.includes("المراجعة") ||
+            part.includes("متوجه") ||
+            part.includes("تم") ||
+            part.includes("الوصول") ||
+            part.includes("الارسال") ||
+            part.includes("التسليم") ||
+            part.includes("ملغي") ||
+            part.includes("مؤجل"))
+        ) {
           status = part;
         }
       }
-      
+
       // إذا وجدنا حالة، نضيفها
       if (status) {
         // إنشاء timestamp مختلف لكل سجل للحفاظ على الترتيب
         const timestamp = new Date();
         timestamp.setSeconds(timestamp.getSeconds() + index);
-        
+
         allHistoryEntries.push({
           status: status,
           user: user,
-          timestamp: timestamp
+          timestamp: timestamp,
         });
       }
-      
     } catch (error) {
       console.error(`خطأ في تحليل حقل History رقم ${index + 1}:`, error);
     }
   });
-  
+
   // إزالة التكرارات مع الحفاظ على الترتيب
   const uniqueEntries = allHistoryEntries.filter((entry, index, self) => {
-    return index === self.findIndex(e => e.status === entry.status && e.user === entry.user);
+    return (
+      index ===
+      self.findIndex((e) => e.status === entry.status && e.user === entry.user)
+    );
   });
-  
+
   return uniqueEntries;
 }
 
@@ -785,38 +828,38 @@ function parseHistoryField(historyString: string): Array<{
 
 // الحصول على الحالة الصحيحة للشحنة
 async function getOrCreateShipmentStatus(statusName: string): Promise<string> {
-  if (!statusName || statusName.trim() === '') {
-    statusName = 'قيد المراجعة';
+  if (!statusName || statusName.trim() === "") {
+    statusName = "قيد المراجعة";
   }
-  
+
   // البحث عن الحالة الموجودة
   let status = await prisma.shipmentStatus.findFirst({
-    where: { name: statusName.trim() }
+    where: { name: statusName.trim() },
   });
-  
+
   if (!status) {
     // إنشاء الحالة الجديدة
     const statusColors: { [key: string]: string } = {
-      'قيد المراجعة': '#f59e0b',
-      'تم الاستلام': '#10b981',
-      'في الطريق': '#3b82f6',
-      'تم التسليم': '#22c55e',
-      'ملغي': '#ef4444',
-      'مؤجل': '#f97316'
+      "قيد المراجعة": "#f59e0b",
+      "تم الاستلام": "#10b981",
+      "في الطريق": "#3b82f6",
+      "تم التسليم": "#22c55e",
+      ملغي: "#ef4444",
+      مؤجل: "#f97316",
     };
-    
+
     status = await prisma.shipmentStatus.create({
       data: {
         name: statusName.trim(),
-        color: statusColors[statusName.trim()] || '#6b7280',
+        color: statusColors[statusName.trim()] || "#6b7280",
         description: `حالة ${statusName.trim()}`,
-        order: 0
-      }
+        order: 0,
+      },
     });
-    
+
     console.log(`✅ تم إنشاء حالة جديدة: ${statusName.trim()}`);
   }
-  
+
   return status.id;
 }
 
@@ -842,15 +885,15 @@ router.post("/import-csv", async (req, res) => {
     }
 
     // قراءة محتوى الملف
-    const csvContent = csvFile.data.toString('utf-8');
-    
+    const csvContent = csvFile.data.toString("utf-8");
+
     // تحليل البيانات
     const records = parseCSV(csvContent);
     console.log(`تم العثور على ${records.length} سجل في ملف CSV`);
 
     // إنشاء البيانات الأساسية المطلوبة
     const uniqueCountries = new Set<string>();
-    records.forEach(record => {
+    records.forEach((record) => {
       const cleaned = cleanCSVData(record);
       if (cleaned.origin) uniqueCountries.add(cleaned.origin);
       if (cleaned.destination) uniqueCountries.add(cleaned.destination);
@@ -861,7 +904,7 @@ router.post("/import-csv", async (req, res) => {
       if (countryName && countryName.trim()) {
         try {
           const existing = await prisma.country.findFirst({
-            where: { name: countryName }
+            where: { name: countryName },
           });
 
           if (!existing) {
@@ -870,8 +913,8 @@ router.post("/import-csv", async (req, res) => {
                 name: countryName,
                 code: countryName.substring(0, 2).toUpperCase(),
                 type: CountryType.BOTH,
-                isActive: true
-              }
+                isActive: true,
+              },
             });
             countries.set(countryName, country.id);
           } else {
@@ -885,12 +928,12 @@ router.post("/import-csv", async (req, res) => {
 
     // إنشاء الحالات المطلوبة
     const statusesNeeded = new Set<string>();
-    records.forEach(record => {
+    records.forEach((record) => {
       const cleaned = cleanCSVData(record);
       if (cleaned.status) statusesNeeded.add(cleaned.status);
       // معالجة جميع حقول History للحصول على الحالات الإضافية
       const historyEntries = parseAllHistoryFields(cleaned.allHistoryData);
-      historyEntries.forEach(entry => {
+      historyEntries.forEach((entry) => {
         if (entry.status) statusesNeeded.add(entry.status);
       });
     });
@@ -914,25 +957,25 @@ router.post("/import-csv", async (req, res) => {
           location: "المكتب الرئيسي",
           manager: "مدير النظام",
           email: "main@fenertravel.com",
-          phone: "+000000000000"
-        }
+          phone: "+000000000000",
+        },
       });
     }
 
     // إنشاء مستخدم افتراضي إذا لم يكن موجود
     let defaultUser = await prisma.user.findFirst();
     if (!defaultUser) {
-      const bcrypt = await import('bcryptjs');
+      const bcrypt = await import("bcryptjs");
       const hashedPassword = await bcrypt.hash("123456", 10);
-      
+
       defaultUser = await prisma.user.create({
         data: {
           name: "مستخدم النظام",
           email: "system@fenertravel.com",
           password: hashedPassword,
           role: "MANAGER",
-          branchId: defaultBranch.id
-        }
+          branchId: defaultBranch.id,
+        },
       });
     }
 
@@ -947,7 +990,7 @@ router.post("/import-csv", async (req, res) => {
       try {
         // التحقق من وجود الشحنة
         const existingShipment = await prisma.shipment.findFirst({
-          where: { shipmentNumber: cleaned.shipmentTitle }
+          where: { shipmentNumber: cleaned.shipmentTitle },
         });
 
         if (existingShipment) {
@@ -955,8 +998,10 @@ router.post("/import-csv", async (req, res) => {
         }
 
         // الحصول على معرفات البلدان
-        const originCountryId = countries.get(cleaned.origin) || countries.values().next().value;
-        const destinationCountryId = countries.get(cleaned.destination) || countries.values().next().value;
+        const originCountryId =
+          countries.get(cleaned.origin) || countries.values().next().value;
+        const destinationCountryId =
+          countries.get(cleaned.destination) || countries.values().next().value;
 
         if (!originCountryId || !destinationCountryId) {
           errorCount++;
@@ -966,25 +1011,27 @@ router.post("/import-csv", async (req, res) => {
         // تحويل التواريخ بدقة
         let receivingDate = parseCSVDate(cleaned.pickupDate);
         let expectedDeliveryDate = parseCSVDate(cleaned.expectedDeliveryDate);
-        
+
         // إذا لم نجد تاريخ الاستلام، نستخدم التاريخ الحالي
         if (!receivingDate) {
           receivingDate = new Date();
         }
-        
+
         // إذا لم نجد تاريخ التسليم المتوقع، نضيف أسبوع لتاريخ الاستلام
         if (!expectedDeliveryDate) {
-          expectedDeliveryDate = new Date(receivingDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+          expectedDeliveryDate = new Date(
+            receivingDate.getTime() + 7 * 24 * 60 * 60 * 1000
+          );
         }
-        
+
         // معالجة التواريخ الإضافية إذا كانت متاحة
         const departureTime = parseCSVDate(cleaned.departureTime);
         const pickupTime = parseCSVDate(cleaned.pickupTime);
 
         // تحديد الحالة الصحيحة للشحنة
-        const shipmentStatusId = cleaned.status ? 
-          await getOrCreateShipmentStatus(cleaned.status) : 
-          defaultStatus;
+        const shipmentStatusId = cleaned.status
+          ? await getOrCreateShipmentStatus(cleaned.status)
+          : defaultStatus;
 
         // إنشاء الشحنة
         const newShipment = await prisma.shipment.create({
@@ -1012,24 +1059,34 @@ router.post("/import-csv", async (req, res) => {
             shippingCost: 0,
             paidAmount: 0,
             paymentStatus: PaymentStatus.PENDING,
-            notes: cleaned.comments || null
-          }
+            notes: cleaned.comments || null,
+          },
         });
 
         // تسجيل الملاحظات إذا كانت موجودة
-        if (cleaned.comments && cleaned.comments.trim() !== '') {
-          console.log(`💬 ملاحظة للشحنة ${cleaned.shipmentTitle}: "${cleaned.comments}"`);
+        if (cleaned.comments && cleaned.comments.trim() !== "") {
+          console.log(
+            `💬 ملاحظة للشحنة ${cleaned.shipmentTitle}: "${cleaned.comments}"`
+          );
         }
 
         // معالجة جميع سجلات History وإنشاء أحداث التتبع
         const historyEntries = parseAllHistoryFields(cleaned.allHistoryData);
-        console.log(`معالجة ${historyEntries.length} سجل تاريخي للشحنة ${cleaned.shipmentTitle}`);
-        
-        for (let historyIndex = 0; historyIndex < historyEntries.length; historyIndex++) {
+        console.log(
+          `معالجة ${historyEntries.length} سجل تاريخي للشحنة ${cleaned.shipmentTitle}`
+        );
+
+        for (
+          let historyIndex = 0;
+          historyIndex < historyEntries.length;
+          historyIndex++
+        ) {
           const historyEntry = historyEntries[historyIndex];
           try {
-            const historyStatusId = await getOrCreateShipmentStatus(historyEntry.status);
-            
+            const historyStatusId = await getOrCreateShipmentStatus(
+              historyEntry.status
+            );
+
             // إنشاء حدث تتبع
             await prisma.trackingEvent.create({
               data: {
@@ -1037,11 +1094,13 @@ router.post("/import-csv", async (req, res) => {
                 statusId: historyStatusId,
                 location: cleaned.origin || "غير محدد",
                 description: `تغيير الحالة إلى: ${historyEntry.status}`,
-                notes: `تم بواسطة: ${historyEntry.user} (سجل ${historyIndex + 1})`,
+                notes: `تم بواسطة: ${historyEntry.user} (سجل ${
+                  historyIndex + 1
+                })`,
                 updatedById: defaultUser.id,
                 eventTime: historyEntry.timestamp,
-                createdAt: historyEntry.timestamp
-              }
+                createdAt: historyEntry.timestamp,
+              },
             });
 
             // إنشاء سجل في تاريخ الشحنة
@@ -1054,17 +1113,23 @@ router.post("/import-csv", async (req, res) => {
                 oldValue: null,
                 newValue: historyEntry.status,
                 statusId: historyStatusId,
-                notes: `استيراد من النظام القديم - بواسطة: ${historyEntry.user} (سجل ${historyIndex + 1})`,
-                timestamp: historyEntry.timestamp
-              }
+                notes: `استيراد من النظام القديم - بواسطة: ${
+                  historyEntry.user
+                } (سجل ${historyIndex + 1})`,
+                timestamp: historyEntry.timestamp,
+              },
             });
           } catch (historyError) {
-            console.error(`خطأ في إنشاء سجل History ${historyIndex + 1} للشحنة ${cleaned.shipmentTitle}:`, historyError);
+            console.error(
+              `خطأ في إنشاء سجل History ${historyIndex + 1} للشحنة ${
+                cleaned.shipmentTitle
+              }:`,
+              historyError
+            );
           }
         }
 
         successCount++;
-
       } catch (error) {
         console.error(`خطأ في استيراد الشحنة ${cleaned.shipmentTitle}:`, error);
         errorCount++;
@@ -1074,19 +1139,20 @@ router.post("/import-csv", async (req, res) => {
     // حساب إجمالي سجلات History المعالجة والملاحظات
     let totalHistoryRecords = 0;
     let commentsCount = 0;
-    records.forEach(record => {
+    records.forEach((record) => {
       const cleaned = cleanCSVData(record);
       const historyEntries = parseAllHistoryFields(cleaned.allHistoryData);
       totalHistoryRecords += historyEntries.length;
       // حساب الملاحظات غير الفارغة
-      if (cleaned.comments && cleaned.comments.trim() !== '') {
+      if (cleaned.comments && cleaned.comments.trim() !== "") {
         commentsCount++;
       }
     });
 
     res.json({
       success: true,
-      message: "تم استيراد ملف CSV بنجاح مع معالجة شاملة لجميع البيانات والملاحظات",
+      message:
+        "تم استيراد ملف CSV بنجاح مع معالجة شاملة لجميع البيانات والملاحظات",
       importedData: {
         totalRecords: records.length,
         successfulImports: successCount,
@@ -1105,12 +1171,11 @@ router.post("/import-csv", async (req, res) => {
             `📊 حالات منشأة: ${statusesNeeded.size}`,
             `📋 سجلات تاريخية معالجة: ${totalHistoryRecords}`,
             `💬 ملاحظات مستوردة: ${commentsCount}`,
-            `🔄 تم معالجة جميع الأعمدة حتى AL`
-          ]
-        }
+            `🔄 تم معالجة جميع الأعمدة حتى AL`,
+          ],
+        },
       },
     });
-
   } catch (error) {
     console.error("خطأ في استيراد ملف CSV:", error);
     res.status(500).json({
