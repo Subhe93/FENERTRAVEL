@@ -71,11 +71,20 @@ const Sidebar = ({ onClose }: SidebarProps) => {
         )}
         
         {!collapsed && (
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+          <div className="flex items-center gap-3 text-center">
+            {/* <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <Package className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-xl text-gray-900">FENERTRAVEL</span>
+            </div> */}
+            {/* <span className="font-bold text-xl text-gray-900">FENERTRAVEL</span> */}
+               <img 
+                    src="/img/fenerlogo.webp" 
+                    alt="Fener Travel Logo" 
+                    className="h-8 w-auto max-w-38 m-auto p-0 object-contain"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
           </div>
         )}
         

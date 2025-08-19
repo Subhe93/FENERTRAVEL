@@ -138,14 +138,20 @@ const ShipmentLabelPrintPage = () => {
           @page {
             size: 4in 6in;
             margin: 0;
+            
           }
           
           body * {
             visibility: hidden;
+            overflow: hidden;
+           
+            height: 0 !important;
           }
           
           .print-only, .print-only * {
             visibility: visible;
+            height: auto !important;
+            
           }
           
           .print-only {
@@ -154,6 +160,7 @@ const ShipmentLabelPrintPage = () => {
             top: 0;
             width: 4in;
             height: 6in;
+            max-height: 6in;
             padding: 0.1in;
             font-family: Tahoma, Arial, sans-serif;
             font-size: 12px;
@@ -162,6 +169,7 @@ const ShipmentLabelPrintPage = () => {
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
+            
           }
           
           .label-header {

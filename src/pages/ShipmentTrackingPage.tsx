@@ -29,7 +29,8 @@ import {
   Shield,
   Zap,
   Target,
-  ArrowLeft
+  ArrowLeft,
+  MessageCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { type Shipment, type ShipmentHistory } from '@/lib/api-client';
@@ -153,16 +154,16 @@ const ShipmentTrackingPage = () => {
       <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                <Package className="w-7 h-7 text-white" />
-              </div>
-              <div>
-                <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  FENERTRAVEL
-                </span>
-                <p className="text-sm text-gray-600">نظام تتبع الشحنات المتطور</p>
-              </div>
+            <div className="flex items-center gap-0">
+                <img 
+                    src="/img/fenerlogo.webp" 
+                    alt="Fener Travel Logo" 
+                    className="h-14 w-auto max-w-38 m-auto p-0 object-contain"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
             </div>
             
             {/* <Button
@@ -265,8 +266,8 @@ const ShipmentTrackingPage = () => {
             {/* Status Overview */}
             <Card className="shadow-xl border-0 bg-white/70 backdrop-blur-sm overflow-hidden">
               <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between md:flex-nowrap flex-wrap md:gap-0 gap-4">
+                  <div className="flex  items-center gap-4">
                     <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
                       {getStatusIcon(foundShipment.statusName || foundShipment.status?.name || '')}
                     </div>
@@ -556,23 +557,47 @@ const ShipmentTrackingPage = () => {
                 <p className="text-blue-100 mb-6 text-lg">
                   فريق خدمة العملاء متاح على مدار الساعة لمساعدتك
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="flex items-center gap-4 p-4 bg-white/10 rounded-xl">
                     <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                       <Phone className="w-6 h-6 text-white" />
                     </div>
                     <div>
                       <div className="text-blue-100">اتصل بنا</div>
-                      <div className="font-semibold text-white text-lg">+966 11 123 4567</div>
+                      <div className="font-semibold text-white text-lg">
+                        <a href='tel:004915254116010' className='text-white hover:text-blue-100 flex items-center gap-2'>
+                          {/* <Phone className="w-4 h-4" /> */}
+                          004915254116010
+                        </a>
+                      </div>
+                    </div> 
+                  </div>
+                  <div className="flex items-center gap-4 p-4 bg-white/10 rounded-xl">
+                    <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                      <MessageCircle className="w-6 h-6 text-white" />
                     </div>
+                    <div>
+                      <div className="text-blue-100">واتساب</div>
+                      <div className="font-semibold text-white text-lg">
+                        <a href='https://wa.me/+4917632200512' className='text-white hover:text-blue-100 flex items-center gap-2'>
+                          {/* <MessageCircle className="w-4 h-4" /> */}
+                          004917632200512
+                        </a>
+                      </div>
+                    </div> 
                   </div>
                   <div className="flex items-center gap-4 p-4 bg-white/10 rounded-xl">
                     <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                       <Mail className="w-6 h-6 text-white" />
                     </div>
-                    <div>
+                    <div> 
                       <div className="text-blue-100">راسلنا</div>
-                      <div className="font-semibold text-white text-lg">support@fenertravel.com</div>
+                      <div className="font-semibold text-white text-lg">
+                        <a href='mailto:info@fenertravel.de' className='text-white hover:text-blue-100 flex items-center gap-2'>
+                          {/* <Mail className="w-4 h-4" /> */}
+                          info@fenertravel.de
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </div>
