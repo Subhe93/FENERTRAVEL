@@ -962,7 +962,7 @@ const ShipmentsTable = () => {
               <div>
                 <label className="text-sm font-medium">رقم الشحنة</label>
                 <Input
-                  placeholder="FEN001001"
+                  placeholder="FEN000000001"
                   value={filters.shipmentNumber || ''}
                   onChange={(e) => updateFilter('shipmentNumber', e.target.value)}
                 />

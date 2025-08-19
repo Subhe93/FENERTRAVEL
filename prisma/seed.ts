@@ -204,7 +204,7 @@ async function main() {
   const shipments = await Promise.all([
     prisma.shipment.create({
       data: {
-        shipmentNumber: "FEN001001",
+        shipmentNumber: "FEN000001001",
         branchId: branches[0].id,
         createdById: users[1].id,
         statusId: statuses[1].id, // في الطريق
@@ -232,7 +232,7 @@ async function main() {
     }),
     prisma.shipment.create({
       data: {
-        shipmentNumber: "FEN001002",
+        shipmentNumber: "FEN000001002",
         branchId: branches[1].id,
         createdById: users[2].id,
         statusId: statuses[3].id, // تم التسليم

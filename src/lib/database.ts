@@ -158,7 +158,7 @@ export const shipmentService = {
       }
     }
 
-    const shipmentNumber = `FEN${nextNumber.toString().padStart(6, "0")}`;
+    const shipmentNumber = `FEN${nextNumber.toString().padStart(9, "0")}`;
 
     // Extract only valid Prisma fields
     const shipmentData = {
