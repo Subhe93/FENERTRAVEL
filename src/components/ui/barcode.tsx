@@ -43,7 +43,7 @@ const Barcode: React.FC<BarcodeProps> = ({
           textAlign: 'center',
           textPosition: 'bottom',
           textMargin: 5,
-          font: 'Arial, sans-serif',
+          font: 'Tahoma, Arial, sans-serif',
           fontOptions: 'bold'
         });
       } catch (error) {

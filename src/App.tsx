@@ -18,6 +18,7 @@ import CountryManagementPage from '@/pages/CountryManagementPage';
 import BackupManagementPage from '@/pages/BackupManagementPage';
 import InvoicePage from '@/pages/InvoicePage';
 import WaybillPage from '@/pages/WaybillPage';
+import ShipmentLabelPrintPage from '@/pages/ShipmentLabelPrintPage';
 import EditShipmentPage from '@/pages/EditShipmentPage';
 import LoginPage from '@/pages/LoginPage';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -121,6 +122,13 @@ function App() {
                   <ProtectedRoute>
                     <ProtectedPageWrapper>
                       <WaybillPage />
+                    </ProtectedPageWrapper>
+                  </ProtectedRoute>
+                } />
+                <Route path="/shipment-label/:id" element={
+                  <ProtectedRoute>
+                    <ProtectedPageWrapper>
+                      <ShipmentLabelPrintPage />
                     </ProtectedPageWrapper>
                   </ProtectedRoute>
                 } />

@@ -149,6 +149,38 @@ export const shipmentsAPI = {
       `/shipments/${id}/tracking`
     );
   },
+
+  async getAllShipmentsForExport() {
+    return apiClient.get<{
+      shipments: Shipment[];
+      total: number;
+    }>("/shipments/export/all");
+  },
+
+  async getFilteredShipmentsForExport(filters: any, sorting: any) {
+    const params = new URLSearchParams();
+    
+    // إضافة الفلاتر
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value && value !== 'all') {
+        params.append(key, String(value));
+      }
+    });
+
+    // إضافة الترتيب
+    if (sorting.sortBy) {
+      params.append('sortBy', sorting.sortBy);
+    }
+    if (sorting.sortOrder) {
+      params.append('sortOrder', sorting.sortOrder);
+    }
+
+    return apiClient.get<{
+      shipments: Shipment[];
+      total: number;
+      filters: any;
+    }>(`/shipments/export/filtered?${params.toString()}`);
+  },
 };
 
 // خدمات المستخدمين

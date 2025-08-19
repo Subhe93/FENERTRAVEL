@@ -41,11 +41,13 @@ import { useData } from '@/contexts/DataContext';
 import { useShipments, type ShipmentsFilters } from '@/hooks/use-shipments';
 import { useToast } from '@/hooks/use-toast';
 import { type Shipment } from '@/lib/api-client';
+import { shipmentsAPI } from '@/lib/api';
 
 import {
   FileText,
   Route,
   Eye,
+  Printer,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -114,7 +116,7 @@ const COLUMNS: ColumnDef[] = [
   { id: 'paymentMethod', label: 'طريقة الدفع', icon: <CreditCard className="w-4 h-4" />, minWidth: '140px', sortKey: 'paymentMethod' },
   { id: 'branch', label: 'الفرع', icon: <MapPin className="w-4 h-4" />, minWidth: '120px', sortKey: 'branchId' },
   { id: 'status', label: 'الحالة', icon: <Clock className="w-4 h-4" />, minWidth: '130px', sortKey: 'status' },
-  { id: 'dates', label: 'التواريخ', icon: <Calendar className="w-4 h-4" />, minWidth: '160px', sortKey: 'createdAt' },
+  { id: 'dates', label: 'التواريخ', icon: <Calendar className="w-4 h-4" />, minWidth: '160px', sortKey: 'receivingDate' },
   { id: 'notes', label: 'الملاحظات', icon: <FileText className="w-4 h-4" />, minWidth: '200px', sortKey: 'notes' },
 ];
 
@@ -192,6 +194,8 @@ const ShipmentsTable = () => {
     shipmentNumber: ''
   });
   const [visibleColumns, setVisibleColumns] = useState<string[]>(getStoredColumns());
+  const [isExportingAll, setIsExportingAll] = useState(false);
+  const [isExportingFiltered, setIsExportingFiltered] = useState(false);
 
   // Get unique payment methods from current shipments
   const uniquePaymentMethods = [...new Set(shipments.map(s => s.paymentMethod).filter(Boolean))];
@@ -398,45 +402,19 @@ const ShipmentsTable = () => {
       ? shipments.filter(s => selectedShipments.includes(s.id))
       : shipments;
     
-    const totalWeight = selectedShipmentData.reduce((sum, s) => sum + s.weight, 0);
-    const totalBoxes = selectedShipmentData.reduce((sum, s) => sum + s.numberOfBoxes, 0);
+    const totalWeight = selectedShipmentData.reduce((sum, s) => sum + Number(s.weight || 0), 0);
+    const totalBoxes = selectedShipmentData.reduce((sum, s) => sum + Number(s.numberOfBoxes || 0), 0);
 
-    const exportData = selectedShipmentData.map(shipment => ({
-      'رقم الشحنة': shipment.shipmentNumber,
-      'المرسل': shipment.senderName,
-      'هاتف المرسل': shipment.senderPhone,
-      'عنوان المرسل': shipment.senderAddress,
-      'بريد المرسل': shipment.senderEmail,
-      'المستلم': shipment.recipientName,
-      'هاتف المستلم': shipment.recipientPhone,
-      'عنوان المستلم': shipment.recipientAddress,
-      'بريد المستلم': shipment.recipientEmail,
-      'الوزن': shipment.weight,
-      'عدد الصناديق': shipment.numberOfBoxes,
-      'بلد الأصل': typeof shipment.originCountry === 'object' ? shipment.originCountry?.name : shipment.originCountry,
-      'بلد الوجهة': typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name : shipment.destinationCountry,
-      'المحتوى': shipment.content,
-      'طريقة الدفع': getPaymentMethodText(shipment.paymentMethod),
-      'الفرع': typeof shipment.branch === 'object' ? shipment.branch?.name : shipment.branchName,
-      'الحالة': typeof shipment.status === 'object' ? shipment.status?.name : shipment.status,
-      'تاريخ الاستلام': shipment.receivingDate,
-      'التسليم المتوقع': shipment.expectedDeliveryDate,
-      'تاريخ الإنشاء': new Date(shipment.createdAt).toLocaleDateString(),
-      'الملاحظات': shipment.notes
-    }));
-
-    // Add summary row
-    exportData.push({
+    // Add summary row first
+    const exportData = [{
       'رقم الشحنة': 'المجموع',
       'المرسل': '',
       'هاتف المرسل': '',
       'عنوان المرسل': '',
-      'بريد المرسل': '',
       'المستلم': '',
       'هاتف المستلم': '',
       'عنوان المستلم': '',
-      'بريد المستلم': '',
-      'الوزن': totalWeight,
+      'الوزن': Number(totalWeight.toFixed(2)),
       'عدد الصناديق': totalBoxes,
       'بلد الأصل': '',
       'بلد الوجهة': '',
@@ -446,14 +424,271 @@ const ShipmentsTable = () => {
       'الحالة': '',
       'تاريخ الاستلام': '',
       'التسليم المتوقع': '',
-      'تاريخ الإنشاء': '',
       'الملاحظات': ''
+    }];
+
+    // Add individual shipment data
+    const shipmentData = selectedShipmentData.map(shipment => ({
+      'رقم الشحنة': shipment.shipmentNumber,
+      'المرسل': shipment.senderName,
+      'هاتف المرسل': shipment.senderPhone,
+      'عنوان المرسل': shipment.senderAddress,
+      'المستلم': shipment.recipientName,
+      'هاتف المستلم': shipment.recipientPhone,
+      'عنوان المستلم': shipment.recipientAddress,
+      'الوزن': Number(shipment.weight),
+      'عدد الصناديق': shipment.numberOfBoxes,
+      'بلد الأصل': typeof shipment.originCountry === 'object' ? shipment.originCountry?.name : shipment.originCountry,
+      'بلد الوجهة': typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name : shipment.destinationCountry,
+      'المحتوى': shipment.content,
+      'طريقة الدفع': getPaymentMethodText(shipment.paymentMethod),
+      'الفرع': typeof shipment.branch === 'object' ? shipment.branch?.name : shipment.branchName,
+      'الحالة': typeof shipment.status === 'object' ? shipment.status?.name : shipment.status,
+      'تاريخ الاستلام': shipment.receivingDate,
+      'التسليم المتوقع': shipment.expectedDeliveryDate,
+      'الملاحظات': shipment.notes
+    }));
+
+    exportData.push(...shipmentData);
+
+    // إنشاء الورقة بدون عناوين أولاً
+    const ws = XLSX.utils.aoa_to_sheet([]);
+    
+    // إضافة سطر المجموع في الأعلى
+    XLSX.utils.sheet_add_aoa(ws, [
+      ['المجموع', '', '', '', '', '', '', Number(totalWeight.toFixed(2)), totalBoxes, '', '', '', '', '', '', '', '']
+    ], { origin: 'A1' });
+    
+    // إضافة بيانات الشحنات مع العناوين
+    XLSX.utils.sheet_add_json(ws, exportData.slice(1), { 
+      origin: 'A3',
+      header: [
+        'رقم الشحنة', 'المرسل', 'هاتف المرسل', 'عنوان المرسل', 
+        'المستلم', 'هاتف المستلم', 'عنوان المستلم', 'الوزن', 
+        'عدد الصناديق', 'بلد الأصل', 'بلد الوجهة', 'المحتوى', 
+        'طريقة الدفع', 'الفرع', 'الحالة', 'تاريخ الاستلام', 
+        'التسليم المتوقع', 'الملاحظات'
+      ]
     });
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'الشحنات');
     XLSX.writeFile(wb, `shipments_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const exportFilteredToExcel = async () => {
+    setIsExportingFiltered(true);
+    try {
+      const response = await shipmentsAPI.getFilteredShipmentsForExport(filters, sorting);
+      
+      if (response.success && response.data) {
+        const filteredShipments = response.data.shipments;
+        const totalWeight = filteredShipments.reduce((sum, s) => sum + Number(s.weight || 0), 0);
+        const totalBoxes = filteredShipments.reduce((sum, s) => sum + Number(s.numberOfBoxes || 0), 0);
+
+        // Add summary row first
+        const exportData = [{
+          'رقم الشحنة': 'المجموع',
+          'المرسل': '',
+          'هاتف المرسل': '',
+          'عنوان المرسل': '',
+          'المستلم': '',
+          'هاتف المستلم': '',
+          'عنوان المستلم': '',
+          'الوزن': Number(totalWeight.toFixed(2)),
+          'عدد الصناديق': totalBoxes,
+          'بلد الأصل': '',
+          'بلد الوجهة': '',
+          'المحتوى': '',
+          'طريقة الدفع': '',
+          'الفرع': '',
+          'الحالة': '',
+          'تاريخ الاستلام': '',
+          'التسليم المتوقع': '',
+          'الملاحظات': ''
+        }];
+
+        // Add individual shipment data
+        const shipmentData = filteredShipments.map(shipment => ({
+          'رقم الشحنة': shipment.shipmentNumber,
+          'المرسل': shipment.senderName,
+          'هاتف المرسل': shipment.senderPhone,
+          'عنوان المرسل': shipment.senderAddress,
+          'المستلم': shipment.recipientName,
+          'هاتف المستلم': shipment.recipientPhone,
+          'عنوان المستلم': shipment.recipientAddress,
+          'الوزن': Number(shipment.weight),
+          'عدد الصناديق': shipment.numberOfBoxes,
+          'بلد الأصل': typeof shipment.originCountry === 'object' ? shipment.originCountry?.name : shipment.originCountry,
+          'بلد الوجهة': typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name : shipment.destinationCountry,
+          'المحتوى': shipment.content,
+          'طريقة الدفع': getPaymentMethodText(shipment.paymentMethod),
+          'الفرع': typeof shipment.branch === 'object' ? shipment.branch?.name : shipment.branchName,
+          'الحالة': typeof shipment.status === 'object' ? shipment.status?.name : shipment.status,
+          'تاريخ الاستلام': shipment.receivingDate,
+          'التسليم المتوقع': shipment.expectedDeliveryDate,
+          'الملاحظات': shipment.notes
+        }));
+
+        exportData.push(...shipmentData);
+
+        // إنشاء الورقة بدون عناوين أولاً
+        const ws = XLSX.utils.aoa_to_sheet([]);
+        
+        // إضافة سطر المجموع في الأعلى
+        XLSX.utils.sheet_add_aoa(ws, [
+          ['المجموع', '', '', '', '', '', '', Number(totalWeight.toFixed(2)), totalBoxes, '', '', '', '', '', '', '', '']
+        ], { origin: 'A1' });
+        
+        // إضافة بيانات الشحنات مع العناوين
+        XLSX.utils.sheet_add_json(ws, exportData.slice(1), { 
+          origin: 'A3',
+          header: [
+            'رقم الشحنة', 'المرسل', 'هاتف المرسل', 'عنوان المرسل', 
+            'المستلم', 'هاتف المستلم', 'عنوان المستلم', 'الوزن', 
+            'عدد الصناديق', 'بلد الأصل', 'بلد الوجهة', 'المحتوى', 
+            'طريقة الدفع', 'الفرع', 'الحالة', 'تاريخ الاستلام', 
+            'التسليم المتوقع', 'الملاحظات'
+          ]
+        });
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'الشحنات المفلترة');
+        
+        // إنشاء اسم ملف ديناميكي حسب الفلاتر
+        const activeFiltersCount = Object.keys(filters).filter(key => filters[key as keyof ShipmentsFilters] && filters[key as keyof ShipmentsFilters] !== 'all').length;
+        const fileName = activeFiltersCount > 0 
+          ? `filtered_shipments_${activeFiltersCount}filters_${new Date().toISOString().split('T')[0]}.xlsx`
+          : `all_shipments_${new Date().toISOString().split('T')[0]}.xlsx`;
+        
+        XLSX.writeFile(wb, fileName);
+
+        toast({
+          title: "تم تصدير البيانات المفلترة بنجاح",
+          description: `تم تصدير ${filteredShipments.length} شحنة${activeFiltersCount > 0 ? ` مع ${activeFiltersCount} فلتر مطبق` : ''}`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "فشل في تصدير البيانات",
+          description: "حدث خطأ أثناء جلب البيانات",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Failed to export filtered shipments:', error);
+      toast({
+        title: "خطأ في النظام",
+        description: "حدث خطأ غير متوقع",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExportingFiltered(false);
+    }
+  };
+
+  const exportAllToExcel = async () => {
+    setIsExportingAll(true);
+    try {
+      const response = await shipmentsAPI.getAllShipmentsForExport();
+      
+      if (response.success && response.data) {
+        const allShipments = response.data.shipments;
+        const totalWeight = allShipments.reduce((sum, s) => sum + Number(s.weight || 0), 0);
+        const totalBoxes = allShipments.reduce((sum, s) => sum + Number(s.numberOfBoxes || 0), 0);
+
+        // Add summary row first
+        const exportData = [{
+          'رقم الشحنة': 'المجموع',
+          'المرسل': '',
+          'هاتف المرسل': '',
+          'عنوان المرسل': '',
+          'المستلم': '',
+          'هاتف المستلم': '',
+          'عنوان المستلم': '',
+          'الوزن': Number(totalWeight.toFixed(2)),
+          'عدد الصناديق': totalBoxes,
+          'بلد الأصل': '',
+          'بلد الوجهة': '',
+          'المحتوى': '',
+          'طريقة الدفع': '',
+          'الفرع': '',
+          'الحالة': '',
+          'تاريخ الاستلام': '',
+          'التسليم المتوقع': '',
+          'الملاحظات': ''
+        }];
+
+        // Add individual shipment data
+        const shipmentData = allShipments.map(shipment => ({
+          'رقم الشحنة': shipment.shipmentNumber,
+          'المرسل': shipment.senderName,
+          'هاتف المرسل': shipment.senderPhone,
+          'عنوان المرسل': shipment.senderAddress,
+          'المستلم': shipment.recipientName,
+          'هاتف المستلم': shipment.recipientPhone,
+          'عنوان المستلم': shipment.recipientAddress,
+          'الوزن': Number(shipment.weight),
+          'عدد الصناديق': shipment.numberOfBoxes,
+          'بلد الأصل': typeof shipment.originCountry === 'object' ? shipment.originCountry?.name : shipment.originCountry,
+          'بلد الوجهة': typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name : shipment.destinationCountry,
+          'المحتوى': shipment.content,
+          'طريقة الدفع': getPaymentMethodText(shipment.paymentMethod),
+          'الفرع': typeof shipment.branch === 'object' ? shipment.branch?.name : shipment.branchName,
+          'الحالة': typeof shipment.status === 'object' ? shipment.status?.name : shipment.status,
+          'تاريخ الاستلام': shipment.receivingDate,
+          'التسليم المتوقع': shipment.expectedDeliveryDate,
+          'الملاحظات': shipment.notes
+        }));
+
+        exportData.push(...shipmentData);
+
+        // إنشاء الورقة بدون عناوين أولاً
+        const ws = XLSX.utils.aoa_to_sheet([]);
+        
+        // إضافة سطر المجموع في الأعلى
+        XLSX.utils.sheet_add_aoa(ws, [
+          ['المجموع', '', '', '', '', '', '', Number(totalWeight.toFixed(2)), totalBoxes, '', '', '', '', '', '', '', '']
+        ], { origin: 'A1' });
+        
+        // إضافة بيانات الشحنات مع العناوين
+        XLSX.utils.sheet_add_json(ws, exportData.slice(1), { 
+          origin: 'A3',
+          header: [
+            'رقم الشحنة', 'المرسل', 'هاتف المرسل', 'عنوان المرسل', 
+            'المستلم', 'هاتف المستلم', 'عنوان المستلم', 'الوزن', 
+            'عدد الصناديق', 'بلد الأصل', 'بلد الوجهة', 'المحتوى', 
+            'طريقة الدفع', 'الفرع', 'الحالة', 'تاريخ الاستلام', 
+            'التسليم المتوقع', 'الملاحظات'
+          ]
+        });
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'جميع الشحنات');
+        XLSX.writeFile(wb, `all_shipments_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+        toast({
+          title: "تم تصدير البيانات بنجاح",
+          description: `تم تصدير ${allShipments.length} شحنة`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "فشل في تصدير البيانات",
+          description: "حدث خطأ أثناء جلب البيانات",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Failed to export all shipments:', error);
+      toast({
+        title: "خطأ في النظام",
+        description: "حدث خطأ غير متوقع",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExportingAll(false);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -625,9 +860,34 @@ const ShipmentsTable = () => {
           <Button
             onClick={exportToExcel}
             className="flex items-center gap-2"
+            variant="outline"
           >
             <Download className="w-4 h-4" />
-            تصدير ({selectedShipments.length > 0 ? selectedShipments.length : shipments.length})
+            تصدير الصفحة ({selectedShipments.length > 0 ? selectedShipments.length : shipments.length})
+          </Button>
+
+          {/* Export Filtered Data Button */}
+          {Object.keys(filters).some(key => filters[key as keyof ShipmentsFilters] && filters[key as keyof ShipmentsFilters] !== 'all') && (
+            <Button
+              onClick={exportFilteredToExcel}
+              className="flex items-center gap-2"
+              variant="outline"
+              disabled={isExportingFiltered}
+            >
+              {isExportingFiltered && <Loader2 className="w-4 h-4 animate-spin" />}
+              <Download className="w-4 h-4" />
+              تصدير البيانات المفلترة ({pagination.total})
+            </Button>
+          )}
+          
+          <Button
+            onClick={exportAllToExcel}
+            className="flex items-center gap-2"
+            disabled={isExportingAll}
+          >
+            {isExportingAll && <Loader2 className="w-4 h-4 animate-spin" />}
+            <Download className="w-4 h-4" />
+            تصدير كل البيانات
           </Button>
         </div>
       </div>
@@ -856,9 +1116,9 @@ const ShipmentsTable = () => {
                 </Select>
               </div>
 
-              {/* Date From Filter */}
+              {/* Date From Filter - Receiving Date */}
               <div>
-                <Label>من تاريخ</Label>
+                <Label>من تاريخ الاستلام</Label>
                 <DatePicker
                   date={filters.dateFrom ? new Date(filters.dateFrom) : undefined}
                   onSelect={(date) => {
@@ -869,13 +1129,13 @@ const ShipmentsTable = () => {
                       updateFilter('dateFrom', '');
                     }
                   }}
-                  placeholder="اختر تاريخ البداية"
+                  placeholder="اختر تاريخ بداية الاستلام"
                 />
               </div>
 
-              {/* Date To Filter */}
+              {/* Date To Filter - Receiving Date */}
               <div>
-                <Label>إلى تاريخ</Label>
+                <Label>إلى تاريخ الاستلام</Label>
                 <DatePicker
                   date={filters.dateTo ? new Date(filters.dateTo) : undefined}
                   onSelect={(date) => {
@@ -886,7 +1146,7 @@ const ShipmentsTable = () => {
                       updateFilter('dateTo', '');
                     }
                   }}
-                  placeholder="اختر تاريخ النهاية"
+                  placeholder="اختر تاريخ نهاية الاستلام"
                 />
               </div>
 
@@ -939,6 +1199,183 @@ const ShipmentsTable = () => {
               </div>
             </div>
 
+            {/* Active Filters Display */}
+            {Object.keys(filters).some(key => filters[key as keyof ShipmentsFilters] && filters[key as keyof ShipmentsFilters] !== 'all') && (
+              <div className="mt-6 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium text-blue-800">الفلاتر المطبقة حالياً:</h4>
+                  <Button variant="outline" size="sm" onClick={clearAllFilters} className="text-blue-600 border-blue-300">
+                    <X className="w-4 h-4 mr-1" />
+                    مسح جميع الفلاتر
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {filters.search && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <Search className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">البحث: {filters.search}</span>
+                      <button onClick={() => updateFilter('search', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.shipmentNumber && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <Package className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">رقم الشحنة: {filters.shipmentNumber}</span>
+                      <button onClick={() => updateFilter('shipmentNumber', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.senderName && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <User className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">المرسل: {filters.senderName}</span>
+                      <button onClick={() => updateFilter('senderName', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.senderPhone && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <Phone className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">هاتف المرسل: {filters.senderPhone}</span>
+                      <button onClick={() => updateFilter('senderPhone', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.recipientName && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <User className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">المستلم: {filters.recipientName}</span>
+                      <button onClick={() => updateFilter('recipientName', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.recipientPhone && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <Phone className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">هاتف المستلم: {filters.recipientPhone}</span>
+                      <button onClick={() => updateFilter('recipientPhone', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.status && filters.status !== 'all' && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <Clock className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">الحالة: {statuses.find(s => s.id === filters.status)?.name}</span>
+                      <button onClick={() => updateFilter('status', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.branch && filters.branch !== 'all' && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <MapPin className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">الفرع: {branches.find(b => b.id === filters.branch)?.name}</span>
+                      <button onClick={() => updateFilter('branch', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.paymentMethod && filters.paymentMethod !== 'all' && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <CreditCard className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">طريقة الدفع: {getPaymentMethodText(filters.paymentMethod)}</span>
+                      <button onClick={() => updateFilter('paymentMethod', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.content && filters.content !== 'all' && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <FileCheck className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">المحتوى: {filters.content}</span>
+                      <button onClick={() => updateFilter('content', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.originCountry && filters.originCountry !== 'all' && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <Globe className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">بلد الأصل: {countries?.find(c => c.id === filters.originCountry)?.name}</span>
+                      <button onClick={() => updateFilter('originCountry', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.destinationCountry && filters.destinationCountry !== 'all' && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <Globe className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">بلد الوجهة: {countries?.find(c => c.id === filters.destinationCountry)?.name}</span>
+                      <button onClick={() => updateFilter('destinationCountry', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.dateFrom && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <Calendar className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">من تاريخ: {new Date(filters.dateFrom).toLocaleDateString()}</span>
+                      <button onClick={() => updateFilter('dateFrom', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.dateTo && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <Calendar className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">إلى تاريخ: {new Date(filters.dateTo).toLocaleDateString()}</span>
+                      <button onClick={() => updateFilter('dateTo', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.weightFrom && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <Weight className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">الوزن من: {filters.weightFrom} كغ</span>
+                      <button onClick={() => updateFilter('weightFrom', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.weightTo && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <Weight className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">الوزن إلى: {filters.weightTo} كغ</span>
+                      <button onClick={() => updateFilter('weightTo', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.boxesFrom && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <Box className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">الصناديق من: {filters.boxesFrom}</span>
+                      <button onClick={() => updateFilter('boxesFrom', '')} className="mr-2 bg-white text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  {filters.boxesTo && (
+                    <div className="flex items-center bg-white px-3 py-1 rounded-full border border-blue-300">
+                      <Box className="w-3 h-3 ml-1 text-blue-600" />
+                      <span className="text-sm text-blue-800">الصناديق إلى: {filters.boxesTo}</span>
+                      <button onClick={() => updateFilter('boxesTo', '')} className="mr-2 bg-white  text-blue-600 hover:text-blue-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-end mt-6">
               {isLoading ? (<div className='flex flex-nowrap items-center gap-3'> <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
               <div className="text-gray-500">جاري تحميل البيانات...</div></div>): "" }
@@ -946,6 +1383,84 @@ const ShipmentsTable = () => {
                <ResetIcon className='w-5'></ResetIcon>
                 مسح جميع الفلاتر
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Filters Summary Card */}
+      {Object.keys(filters).some(key => filters[key as keyof ShipmentsFilters] && filters[key as keyof ShipmentsFilters] !== 'all') ? (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="w-5 h-5 text-green-600" />
+                  <span className="font-medium text-green-800">تم تطبيق فلاتر</span>
+                </div>
+                <div className="text-sm text-green-700">
+                  {Object.keys(filters).filter(key => filters[key as keyof ShipmentsFilters] && filters[key as keyof ShipmentsFilters] !== 'all').length} فلتر نشط
+                </div>
+                <div className="text-sm font-medium text-green-800">
+                  النتائج: {pagination.total} شحنة
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportFilteredToExcel}
+                  disabled={isExportingFiltered}
+                  className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                >
+                  {isExportingFiltered && <Loader2 className="w-3 h-3 animate-spin mr-1" />}
+                  <Download className="w-3 h-3 mr-1" />
+                  تصدير
+                </Button>
+                {/* <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAdvancedFilters(true)}
+                  className="text-green-700 border-green-300 hover:bg-green-100"
+                >
+                  <SlidersHorizontal className="w-4 h-4 mr-1" />
+                  تعديل الفلاتر
+                </Button> */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="text-red-600 border-red-300 hover:bg-red-50"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  مسح الكل
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-gray-200 bg-gray-50">
+          <CardContent className="p-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="w-5 h-5 text-gray-500" />
+                  <span className="font-medium text-gray-700">لا توجد فلاتر مطبقة</span>
+                </div>
+                <div className="text-sm text-gray-600">
+                  عرض جميع الشحنات - {pagination.total} شحنة
+                </div>
+              </div>
+              {/* <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAdvancedFilters(true)}
+                className="text-blue-600 border-blue-300 hover:bg-blue-50"
+              >
+                <SlidersHorizontal className="w-4 h-4 mr-1" />
+                إضافة فلاتر
+              </Button> */}
             </div>
           </CardContent>
         </Card>
@@ -1160,12 +1675,9 @@ const ShipmentsTable = () => {
                               ))}
                             </SelectContent>
                           </Select>
-                        ) : col.id === 'dates' ? (
+                                                                        ) : col.id === 'dates' ? (
                           <div className="space-y-1 text-xs">
-                            <div>
-                              <span className="text-gray-500">الإنشاء:</span><br />
-                              {new Date(shipment.createdAt).toLocaleDateString()}
-                            </div>
+                           
                             <div>
                               <span className="text-gray-500">الاستلام:</span><br />
                               {new Date(shipment.receivingDate).toLocaleDateString()}
@@ -1203,6 +1715,11 @@ const ShipmentsTable = () => {
                         <Button variant="outline" size="sm" asChild>
                           <Link to={`/waybill/${shipment.id}`}>
                             <Route className="w-4 h-4" />
+                          </Link>
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
+                          <Link to={`/shipment-label/${shipment.id}`}>
+                            <Printer className="w-4 h-4" />
                           </Link>
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => handleDeleteRequest(shipment.id, shipment.shipmentNumber)}>

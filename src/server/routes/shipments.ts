@@ -59,7 +59,7 @@ router.get("/", requireAuth, async (req, res) => {
       weightTo,
       boxesFrom,
       boxesTo,
-      sortBy = "createdAt",
+      sortBy = "receivingDate",
       sortOrder = "desc",
     } = req.query as ShipmentFilters & {
       page?: string;
@@ -114,19 +114,19 @@ router.get("/", requireAuth, async (req, res) => {
       };
     }
 
-    // فلتر التاريخ
+    // فلتر التاريخ (حسب تاريخ الاستلام)
     if (dateFrom || dateTo) {
-      where.createdAt = {};
+      where.receivingDate = {};
       if (dateFrom) {
         const fromDate = new Date(String(dateFrom));
         if (!isNaN(fromDate.getTime())) {
-          where.createdAt.gte = fromDate;
+          where.receivingDate.gte = fromDate;
         }
       }
       if (dateTo) {
         const toDate = new Date(String(dateTo) + "T23:59:59");
         if (!isNaN(toDate.getTime())) {
-          where.createdAt.lte = toDate;
+          where.receivingDate.lte = toDate;
         }
       }
     }
@@ -268,6 +268,8 @@ router.get("/", requireAuth, async (req, res) => {
     const orderBy: Record<string, unknown> = {};
     const validSortFields = [
       "createdAt",
+      "receivingDate",
+      "expectedDeliveryDate",
       "shipmentNumber",
       "senderName",
       "recipientName",
@@ -294,7 +296,7 @@ router.get("/", requireAuth, async (req, res) => {
         orderBy[String(sortBy)] = sortOrder === "asc" ? "asc" : "desc";
       }
     } else {
-      orderBy.createdAt = "desc";
+      orderBy.receivingDate = "desc";
     }
 
     const [shipments, total] = await Promise.all([
@@ -990,6 +992,435 @@ router.get("/:id/tracking", requireAuth, async (req, res) => {
     res.status(500).json({
       success: false,
       error: "خطأ في جلب أحداث التتبع",
+    });
+  }
+});
+
+// GET /api/shipments/export/filtered - تصدير الشحنات المفلترة
+router.get("/export/filtered", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user as AuthenticatedUser;
+    const {
+      search,
+      shipmentNumber,
+      senderName,
+      senderPhone,
+      recipientName,
+      recipientPhone,
+      status,
+      branch,
+      paymentMethod,
+      originCountry,
+      destinationCountry,
+      content,
+      dateFrom,
+      dateTo,
+      weightFrom,
+      weightTo,
+      boxesFrom,
+      boxesTo,
+      sortBy = "receivingDate",
+      sortOrder = "desc",
+    } = req.query as ShipmentFilters & {
+      sortBy?: string;
+      sortOrder?: string;
+    };
+
+    // بناء فلتر البحث (نفس منطق GET / ولكن بدون pagination)
+    const where: Prisma.ShipmentWhereInput = {};
+
+    // إذا كان المستخدم موظف فرع، عرض شحنات فرعه فقط
+    if (user.role === "BRANCH" && user.branchId) {
+      where.branchId = user.branchId;
+    }
+
+    // فلتر الفرع (للمدراء فقط)
+    if (branch && branch !== "all" && user.role === "MANAGER") {
+      where.branchId = String(branch).trim();
+    }
+
+    // فلتر الحالة
+    if (status && status !== "all") {
+      where.statusId = String(status).trim();
+    }
+
+    // فلتر طريقة الدفع
+    if (paymentMethod && paymentMethod !== "all") {
+      where.paymentMethod = String(paymentMethod).trim() as any;
+    }
+
+    // فلتر بلد الأصل
+    if (originCountry && originCountry !== "all") {
+      where.originCountryId = String(originCountry).trim();
+    }
+
+    // فلتر بلد الوجهة
+    if (destinationCountry && destinationCountry !== "all") {
+      where.destinationCountryId = String(destinationCountry).trim();
+    }
+
+    // فلتر المحتوى
+    if (content && content !== "all") {
+      where.content = {
+        contains: String(content).trim(),
+        mode: "insensitive",
+      };
+    }
+
+    // فلتر التاريخ (حسب تاريخ الاستلام)
+    if (dateFrom || dateTo) {
+      where.receivingDate = {};
+      if (dateFrom) {
+        const fromDate = new Date(String(dateFrom));
+        if (!isNaN(fromDate.getTime())) {
+          where.receivingDate.gte = fromDate;
+        }
+      }
+      if (dateTo) {
+        const toDate = new Date(String(dateTo) + "T23:59:59");
+        if (!isNaN(toDate.getTime())) {
+          where.receivingDate.lte = toDate;
+        }
+      }
+    }
+
+    // فلتر الوزن
+    if (weightFrom || weightTo) {
+      where.weight = {};
+      if (weightFrom) {
+        const weight = parseFloat(String(weightFrom));
+        if (!isNaN(weight)) {
+          where.weight.gte = weight;
+        }
+      }
+      if (weightTo) {
+        const weight = parseFloat(String(weightTo));
+        if (!isNaN(weight)) {
+          where.weight.lte = weight;
+        }
+      }
+    }
+
+    // فلتر عدد الصناديق
+    if (boxesFrom || boxesTo) {
+      where.numberOfBoxes = {};
+      if (boxesFrom) {
+        const boxes = parseInt(String(boxesFrom));
+        if (!isNaN(boxes)) {
+          where.numberOfBoxes.gte = boxes;
+        }
+      }
+      if (boxesTo) {
+        const boxes = parseInt(String(boxesTo));
+        if (!isNaN(boxes)) {
+          where.numberOfBoxes.lte = boxes;
+        }
+      }
+    }
+
+    // البحث النصي العام أو الفلاتر المحددة
+    const searchConditions = [];
+
+    if (search) {
+      const searchTerm = String(search).trim();
+      if (searchTerm) {
+        searchConditions.push(
+          { shipmentNumber: { contains: searchTerm, mode: "insensitive" } },
+          { senderName: { contains: searchTerm, mode: "insensitive" } },
+          { recipientName: { contains: searchTerm, mode: "insensitive" } },
+          { senderPhone: { contains: searchTerm, mode: "insensitive" } },
+          { recipientPhone: { contains: searchTerm, mode: "insensitive" } }
+        );
+      }
+    }
+
+    // فلاتر محددة
+    if (shipmentNumber) {
+      const term = String(shipmentNumber).trim();
+      if (term) {
+        searchConditions.push({
+          shipmentNumber: { contains: term, mode: "insensitive" },
+        });
+      }
+    }
+    if (senderName) {
+      const term = String(senderName).trim();
+      if (term) {
+        searchConditions.push({
+          senderName: { contains: term, mode: "insensitive" },
+        });
+      }
+    }
+    if (senderPhone) {
+      const term = String(senderPhone).trim();
+      if (term) {
+        searchConditions.push({
+          senderPhone: { contains: term, mode: "insensitive" },
+        });
+      }
+    }
+    if (recipientName) {
+      const term = String(recipientName).trim();
+      if (term) {
+        searchConditions.push({
+          recipientName: { contains: term, mode: "insensitive" },
+        });
+      }
+    }
+    if (recipientPhone) {
+      const term = String(recipientPhone).trim();
+      if (term) {
+        searchConditions.push({
+          recipientPhone: { contains: term, mode: "insensitive" },
+        });
+      }
+    }
+
+    if (searchConditions.length > 0) {
+      if (search) {
+        // إذا كان هناك بحث عام، استخدم OR
+        where.OR = searchConditions;
+      } else {
+        // إذا كانت فلاتر محددة، استخدم AND
+        Object.assign(where, {
+          ...(shipmentNumber && {
+            shipmentNumber: {
+              contains: String(shipmentNumber).trim(),
+              mode: "insensitive",
+            },
+          }),
+          ...(senderName && {
+            senderName: {
+              contains: String(senderName).trim(),
+              mode: "insensitive",
+            },
+          }),
+          ...(senderPhone && {
+            senderPhone: {
+              contains: String(senderPhone).trim(),
+              mode: "insensitive",
+            },
+          }),
+          ...(recipientName && {
+            recipientName: {
+              contains: String(recipientName).trim(),
+              mode: "insensitive",
+            },
+          }),
+          ...(recipientPhone && {
+            recipientPhone: {
+              contains: String(recipientPhone).trim(),
+              mode: "insensitive",
+            },
+          }),
+        });
+      }
+    }
+
+    // إعداد الترتيب
+    const orderBy: Record<string, unknown> = {};
+    const validSortFields = [
+      "createdAt",
+      "receivingDate",
+      "expectedDeliveryDate",
+      "shipmentNumber",
+      "senderName",
+      "recipientName",
+      "weight",
+      "numberOfBoxes",
+      "status",
+      "branchId",
+      "paymentMethod",
+      "originCountry",
+      "destinationCountry",
+      "content",
+    ];
+
+    if (validSortFields.includes(String(sortBy))) {
+      if (sortBy === "status") {
+        orderBy.status = { name: sortOrder === "asc" ? "asc" : "desc" };
+      } else if (sortBy === "originCountry") {
+        orderBy.originCountry = { name: sortOrder === "asc" ? "asc" : "desc" };
+      } else if (sortBy === "destinationCountry") {
+        orderBy.destinationCountry = {
+          name: sortOrder === "asc" ? "asc" : "desc",
+        };
+      } else {
+        orderBy[String(sortBy)] = sortOrder === "asc" ? "asc" : "desc";
+      }
+    } else {
+      orderBy.receivingDate = "desc";
+    }
+
+    // جلب جميع الشحنات المفلترة بدون pagination
+    const shipments = await prisma.shipment.findMany({
+      where,
+      include: {
+        branch: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        status: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
+        originCountry: {
+          select: {
+            id: true,
+            name: true,
+            flagImage: true,
+          },
+        },
+        destinationCountry: {
+          select: {
+            id: true,
+            name: true,
+            flagImage: true,
+          },
+        },
+      },
+      orderBy,
+    });
+
+    // تحويل التواريخ إلى نص مقروء
+    const shipmentsWithDates = shipments.map((shipment) => ({
+      ...shipment,
+      createdAt: shipment.createdAt.toISOString().split("T")[0],
+      updatedAt: shipment.updatedAt.toISOString().split("T")[0],
+      receivingDate: new Date(shipment.receivingDate).toISOString().split("T")[0],
+      expectedDeliveryDate: new Date(shipment.expectedDeliveryDate).toISOString().split("T")[0],
+      actualDeliveryDate: shipment.actualDeliveryDate 
+        ? new Date(shipment.actualDeliveryDate).toISOString().split("T")[0] 
+        : null,
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        shipments: shipmentsWithDates,
+        total: shipments.length,
+        filters: {
+          search,
+          shipmentNumber,
+          senderName,
+          senderPhone,
+          recipientName,
+          recipientPhone,
+          status,
+          branch,
+          paymentMethod,
+          originCountry,
+          destinationCountry,
+          content,
+          dateFrom,
+          dateTo,
+          weightFrom,
+          weightTo,
+          boxesFrom,
+          boxesTo,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Failed to export filtered shipments:", error);
+    res.status(500).json({
+      success: false,
+      error: "خطأ في تصدير الشحنات المفلترة",
+    });
+  }
+});
+
+// GET /api/shipments/export/all - تصدير جميع الشحنات
+router.get("/export/all", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user as AuthenticatedUser;
+    
+    // بناء فلتر البحث (نفس منطق GET / ولكن بدون pagination)
+    const where: Prisma.ShipmentWhereInput = {};
+
+    // إذا كان المستخدم موظف فرع، عرض شحنات فرعه فقط
+    if (user.role === "BRANCH" && user.branchId) {
+      where.branchId = user.branchId;
+    }
+
+    // جلب جميع الشحنات بدون pagination
+    const shipments = await prisma.shipment.findMany({
+      where,
+      include: {
+        branch: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        status: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
+        originCountry: {
+          select: {
+            id: true,
+            name: true,
+            flagImage: true,
+          },
+        },
+        destinationCountry: {
+          select: {
+            id: true,
+            name: true,
+            flagImage: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    // تحويل التواريخ إلى نص مقروء
+    const shipmentsWithDates = shipments.map((shipment) => ({
+      ...shipment,
+      createdAt: shipment.createdAt.toISOString().split("T")[0],
+      updatedAt: shipment.updatedAt.toISOString().split("T")[0],
+      receivingDate: new Date(shipment.receivingDate).toISOString().split("T")[0],
+      expectedDeliveryDate: new Date(shipment.expectedDeliveryDate).toISOString().split("T")[0],
+      actualDeliveryDate: shipment.actualDeliveryDate 
+        ? new Date(shipment.actualDeliveryDate).toISOString().split("T")[0] 
+        : null,
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        shipments: shipmentsWithDates,
+        total: shipments.length,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to export all shipments:", error);
+    res.status(500).json({
+      success: false,
+      error: "خطأ في تصدير الشحنات",
     });
   }
 });

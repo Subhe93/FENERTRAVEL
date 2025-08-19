@@ -144,37 +144,4 @@ button:focus-visible {
   }
 }
 
-/* Print styles */
-@media print {
-  @page {
-    margin: 0.5in;
-    size: A4;
-  }
-  
-  .print\\:shadow-none {
-    box-shadow: none !important;
-  }
-  
-  .print\\:border-none {
-    border: none !important;
-  }
-  
-  .print\\:hidden {
-    display: none !important;
-  }
-  
-  body {
-    -webkit-print-color-adjust: exact;
-    color-adjust: exact;
-  }
-  
-  /* Ensure page breaks */
-  .page-break {
-    page-break-before: always;
-  }
-  
-  /* Avoid breaking inside elements */
-  .avoid-break {
-    page-break-inside: avoid;
-  }
-}
+

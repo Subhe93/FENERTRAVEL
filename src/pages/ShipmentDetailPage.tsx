@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
-import { ArrowLeft, Package, User, MapPin, Calendar, Phone, Mail, Weight, Box, FileText, Edit, QrCode, Loader2 } from 'lucide-react';
+import { ArrowLeft, Package, User, MapPin, Calendar, Phone, Mail, Weight, Box, FileText, Edit, QrCode, Loader2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import ShipmentBarcode from '@/components/ShipmentBarcode';
 import ShipmentStatusHistory from '@/components/ShipmentStatusHistory';
@@ -258,6 +258,13 @@ const ShipmentDetailPage = () => {
             <Link to={`/waybill/${shipment.id}`} className="flex items-center gap-2">
               <FileText className="w-4 h-4" />
               فاتورة الطريق
+            </Link>
+          </Button>
+
+          <Button variant="outline" size="sm" asChild>
+            <Link to={`/shipment-label/${shipment.id}`} className="flex items-center gap-2">
+              <Printer className="w-4 h-4" />
+              ملصق الطباعة
             </Link>
           </Button>
         </div>
