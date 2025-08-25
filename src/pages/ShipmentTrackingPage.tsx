@@ -155,6 +155,7 @@ const ShipmentTrackingPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-0">
+              <a href="https://fenertravel.de">
                 <img 
                     src="/img/fenerlogo.webp" 
                     alt="Fener Travel Logo" 
@@ -164,6 +165,7 @@ const ShipmentTrackingPage = () => {
                       target.style.display = 'none';
                     }}
                   />
+              </a>
             </div>
             
             {/* <Button
