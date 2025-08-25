@@ -1043,6 +1043,48 @@ async function findUserForHistoryEntry(username: string, userBranchMap: Map<stri
   return existingUser?.id || defaultUserId;
 }
 
+// تحديد منشئ الشحنة والفرع من أول اسم في History
+function getShipmentCreatorFromHistory(allHistoryData: string[]): string | null {
+  if (!allHistoryData || allHistoryData.length === 0) {
+    return null;
+  }
+
+  // معالجة كل حقل History للعثور على أول مستخدم
+  for (const historyString of allHistoryData) {
+    if (!historyString || historyString.trim() === "") continue;
+
+    try {
+      const cleanHistory = historyString.trim();
+      const parts = cleanHistory.split("|").map((part) => part.trim());
+
+      // البحث عن أول اسم مستخدم صالح
+      for (const part of parts) {
+        if (
+          part &&
+          part !== "" &&
+          part !== "1" &&
+          !part.includes("المراجعة") &&
+          !part.includes("متوجه") &&
+          !part.includes("تم") &&
+          !part.includes("الوصول") &&
+          !part.includes("الارسال") &&
+          !part.includes("التسليم") &&
+          !part.includes("ملغي") &&
+          !part.includes("مؤجل") &&
+          isNaN(parseInt(part)) &&
+          part.length > 2
+        ) {
+          return part;
+        }
+      }
+    } catch (error) {
+      console.error(`خطأ في تحليل History للعثور على المنشئ:`, error);
+    }
+  }
+
+  return null;
+}
+
 // استيراد ملف CSV
 router.post("/import-csv", async (req, res) => {
   try {
@@ -1211,6 +1253,7 @@ router.post("/import-csv", async (req, res) => {
     // استيراد الشحنات
     let successCount = 0;
     let errorCount = 0;
+    let shipmentsWithHistoryCreator = 0; // عداد الشحنات المربوطة بمنشئ من History
 
     for (let i = 0; i < records.length; i++) {
       const record = records[i];
@@ -1262,12 +1305,40 @@ router.post("/import-csv", async (req, res) => {
           ? await getOrCreateShipmentStatus(cleaned.status)
           : defaultStatus;
 
+        // تحديد منشئ الشحنة من أول اسم في History
+        const creatorNameFromHistory = getShipmentCreatorFromHistory(cleaned.allHistoryData);
+        
+        let shipmentCreatorId = defaultUser.id;
+        let shipmentBranchId = defaultBranch.id;
+        
+        if (creatorNameFromHistory) {
+          // البحث عن المستخدم في الخريطة المنشأة
+          const creatorInfo = userBranchMap.get(creatorNameFromHistory);
+          if (creatorInfo) {
+            shipmentCreatorId = creatorInfo.userId;
+            shipmentBranchId = creatorInfo.branchId;
+            shipmentsWithHistoryCreator++;
+            console.log(`📋 الشحنة ${cleaned.shipmentTitle}: منشئ = ${creatorNameFromHistory}, فرع = ${creatorInfo.branchId}`);
+          } else {
+            // البحث في قاعدة البيانات
+            const existingCreator = await prisma.user.findFirst({
+              where: { name: creatorNameFromHistory }
+            });
+            if (existingCreator && existingCreator.branchId) {
+              shipmentCreatorId = existingCreator.id;
+              shipmentBranchId = existingCreator.branchId;
+              shipmentsWithHistoryCreator++;
+              console.log(`📋 الشحنة ${cleaned.shipmentTitle}: منشئ موجود = ${creatorNameFromHistory}`);
+            }
+          }
+        }
+
         // إنشاء الشحنة
         const newShipment = await prisma.shipment.create({
           data: {
             shipmentNumber: cleaned.shipmentTitle || `FEN${Date.now()}${i}`,
-            branchId: defaultBranch.id,
-            createdById: defaultUser.id,
+            branchId: shipmentBranchId,
+            createdById: shipmentCreatorId,
             statusId: shipmentStatusId,
             originCountryId,
             destinationCountryId,
@@ -1397,12 +1468,14 @@ router.post("/import-csv", async (req, res) => {
         statusesCreated: statusesNeeded.size,
         usersExtractedAndCreated: uniqueUsernames.size,
         branchesCreated: uniqueUsernames.size, // نفس عدد المستخدمين لأن كل مستخدم له فرع
+        shipmentsWithHistoryCreator: shipmentsWithHistoryCreator,
+        shipmentsWithDefaultCreator: successCount - shipmentsWithHistoryCreator,
         historyRecordsProcessed: totalHistoryRecords,
         commentsImported: commentsCount,
         importDate: new Date().toISOString(),
         extractedUsernames: Array.from(uniqueUsernames),
         summary: {
-          message: `تم استيراد ${successCount} شحنة من أصل ${records.length} سجل مع استخراج ${uniqueUsernames.size} مستخدم وإنشاء ${uniqueUsernames.size} فرع من بيانات History`,
+          message: `تم استيراد ${successCount} شحنة من أصل ${records.length} سجل مع استخراج ${uniqueUsernames.size} مستخدم وربط ${shipmentsWithHistoryCreator} شحنة بمنشئين من History`,
           details: [
             `✅ شحنات مستوردة: ${successCount}`,
             `❌ شحنات فاشلة: ${errorCount}`,
@@ -1410,7 +1483,9 @@ router.post("/import-csv", async (req, res) => {
             `📊 حالات منشأة: ${statusesNeeded.size}`,
             `👥 مستخدمين مستخرجين ومنشأين: ${uniqueUsernames.size}`,
             `🏢 فروع منشأة: ${uniqueUsernames.size}`,
-            `📋 سجلات تاريخية معالجة: ${totalHistoryRecords}`,
+            `📋 شحنات مربوطة بمنشئ من History: ${shipmentsWithHistoryCreator}`,
+            `📋 شحنات مربوطة بالمستخدم الافتراضي: ${successCount - shipmentsWithHistoryCreator}`,
+            `📚 سجلات تاريخية معالجة: ${totalHistoryRecords}`,
             `💬 ملاحظات مستوردة: ${commentsCount}`,
             `🔄 تم معالجة جميع الأعمدة حتى AL`,
             `🔗 تم ربط سجلات History بالمستخدمين المناسبين`,
