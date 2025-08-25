@@ -905,16 +905,62 @@ async function createUsersAndBranchesFromHistory(usernames: Set<string>): Promis
       });
 
       if (!branch) {
+        // إنشاء اسم فرع فريد إذا لزم الأمر
+        let branchName = username;
+        let nameAttempt = 1;
+        
+        while (true) {
+          const existingBranch = await prisma.branch.findFirst({
+            where: { name: branchName }
+          });
+          
+          if (!existingBranch) {
+            break; // الاسم متاح
+          }
+          
+          // إنشاء اسم بديل
+          nameAttempt++;
+          branchName = `${username} - ${nameAttempt}`;
+          
+          // تجنب اللوب اللانهائي
+          if (nameAttempt > 100) {
+            branchName = `${username}_${Date.now()}`;
+            break;
+          }
+        }
+
+        // إنشاء بريد إلكتروني فريد للفرع
+        let branchEmail = `${username.toLowerCase()}@fenertravel.com`;
+        let emailAttempt = 1;
+        
+        while (true) {
+          const existingBranchWithEmail = await prisma.branch.findFirst({
+            where: { email: branchEmail }
+          });
+          
+          if (!existingBranchWithEmail) {
+            break; // البريد الإلكتروني متاح
+          }
+          
+          emailAttempt++;
+          branchEmail = `${username.toLowerCase()}.branch${emailAttempt}@fenertravel.com`;
+          
+          if (emailAttempt > 100) {
+            branchEmail = `${username.toLowerCase()}.branch_${Date.now()}@fenertravel.com`;
+            break;
+          }
+        }
+
         branch = await prisma.branch.create({
           data: {
-            name: username,
+            name: branchName,
             location: `مكتب ${username}`,
             manager: username,
-            email: `${username.toLowerCase()}@fenertravel.com`,
+            email: branchEmail,
             phone: `+${Date.now().toString().slice(-10)}`, // رقم هاتف مؤقت
           }
         });
-        console.log(`✅ تم إنشاء الفرع: ${username}`);
+        console.log(`✅ تم إنشاء الفرع: ${branchName}`);
       }
 
       // إنشاء المستخدم
@@ -928,17 +974,41 @@ async function createUsersAndBranchesFromHistory(usernames: Set<string>): Promis
       });
 
       if (!user) {
+        // إنشاء بريد إلكتروني فريد
+        let userEmail = `${username.toLowerCase()}@fenertravel.com`;
+        let emailAttempt = 1;
+        
+        while (true) {
+          const existingWithEmail = await prisma.user.findFirst({
+            where: { email: userEmail },
+          });
+          
+          if (!existingWithEmail) {
+            break; // البريد الإلكتروني متاح
+          }
+          
+          // إنشاء بريد إلكتروني بديل
+          emailAttempt++;
+          userEmail = `${username.toLowerCase()}${emailAttempt}@fenertravel.com`;
+          
+          // تجنب اللوب اللانهائي
+          if (emailAttempt > 100) {
+            userEmail = `${username.toLowerCase()}_${Date.now()}@fenertravel.com`;
+            break;
+          }
+        }
+
         user = await prisma.user.create({
           data: {
             name: username,
-            email: `${username.toLowerCase()}@fenertravel.com`,
+            email: userEmail,
             password: hashedPassword,
             role: UserRole.BRANCH, // دور افتراضي
             branchId: branch.id,
             isActive: true,
           }
         });
-        console.log(`✅ تم إنشاء المستخدم: ${username}`);
+        console.log(`✅ تم إنشاء المستخدم: ${username} بإيميل: ${userEmail}`);
       }
 
       userBranchMap.set(username, {
@@ -1018,20 +1088,65 @@ router.post("/import-csv", async (req, res) => {
           });
 
           if (!existing) {
+            // إنشاء كود فريد للبلد
+            let countryCode = countryName.substring(0, 2).toUpperCase();
+            let codeAttempt = 1;
+            
+            // التحقق من وجود الكود والبحث عن كود بديل إذا لزم الأمر
+            while (true) {
+              const existingWithCode = await prisma.country.findFirst({
+                where: { code: countryCode },
+              });
+              
+              if (!existingWithCode) {
+                break; // الكود متاح
+              }
+              
+              // إنشاء كود بديل
+              codeAttempt++;
+              if (countryName.length >= 3) {
+                countryCode = countryName.substring(0, 1).toUpperCase() + 
+                             countryName.substring(2, 3).toUpperCase();
+              } else {
+                countryCode = countryName.substring(0, 1).toUpperCase() + codeAttempt.toString();
+              }
+              
+              // تجنب اللوب اللانهائي
+              if (codeAttempt > 10) {
+                countryCode = `C${Date.now().toString().slice(-3)}`;
+                break;
+              }
+            }
+
             const country = await prisma.country.create({
               data: {
                 name: countryName,
-                code: countryName.substring(0, 2).toUpperCase(),
+                code: countryCode,
                 type: CountryType.BOTH,
                 isActive: true,
               },
             });
             countries.set(countryName, country.id);
+            console.log(`✅ تم إنشاء البلد: ${countryName} بكود: ${countryCode}`);
           } else {
             countries.set(countryName, existing.id);
+            console.log(`ℹ️ البلد ${countryName} موجود مسبقاً`);
           }
         } catch (error) {
           console.error(`خطأ في إنشاء البلد ${countryName}:`, error);
+          // محاولة العثور على البلد الموجود في حالة فشل الإنشاء
+          const fallbackCountry = await prisma.country.findFirst({
+            where: { 
+              OR: [
+                { name: countryName },
+                { name: { contains: countryName.substring(0, 3) } }
+              ]
+            },
+          });
+          if (fallbackCountry) {
+            countries.set(countryName, fallbackCountry.id);
+            console.log(`🔄 تم استخدام البلد الموجود: ${fallbackCountry.name} للاسم: ${countryName}`);
+          }
         }
       }
     }
