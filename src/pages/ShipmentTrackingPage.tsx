@@ -149,7 +149,7 @@ const ShipmentTrackingPage = () => {
   // shipmentHistory is now managed as state and fetched from API
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex flex-col">
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -180,7 +180,7 @@ const ShipmentTrackingPage = () => {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8 flex-1">
         {/* Hero Section */}
         <div className="text-center mb-16">
           <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-medium mb-6">
@@ -608,6 +608,32 @@ const ShipmentTrackingPage = () => {
           </div>
         )}
       </div>
+      
+      {/* Footer */}
+      <footer className="bg-white/80 backdrop-blur-sm border-t border-gray-200/50 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="text-center text-sm text-gray-500">
+            Powered by{' '}
+            <a 
+              href="https://iwings.io" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              iwings.io
+            </a>
+            {' '}&{' '}
+            <a 
+              href="https://nextyon.de" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              Nextyon.de
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

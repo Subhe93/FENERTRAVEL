@@ -1,7 +1,7 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Activity, Calendar, History } from 'lucide-react';
+import { Activity, Calendar, History, User } from 'lucide-react';
 import { type ShipmentHistory } from '@/lib/api-client';
 
 interface ShipmentStatusHistoryProps {
@@ -107,9 +107,10 @@ const ShipmentStatusHistory: React.FC<ShipmentStatusHistoryProps> = ({
               
               {/* User and timestamp info */}
               <div className="flex items-center justify-between text-sm text-gray-600">
-                {/* <div className="flex items-center gap-4">
+                {showDetails && (
+                <div className="flex items-center gap-4">
                   <div className="flex items-center gap-1">
-                    <User className="w-4 h-4" />
+                    <User className="w-4 h-4" />  
                     <span className="font-medium">
                       {historyItem.userName || historyItem.user?.name || 'غير معروف'}
                     </span>
@@ -121,8 +122,8 @@ const ShipmentStatusHistory: React.FC<ShipmentStatusHistoryProps> = ({
                        historyItem.user.role}
                     </span>
                   )}
-                </div> */}
-                
+                </div>
+                )}
                 <div className="flex items-center gap-1 text-gray-500">
                   <Calendar className="w-4 h-4" />
                   <span>

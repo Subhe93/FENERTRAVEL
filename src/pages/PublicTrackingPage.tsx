@@ -63,7 +63,7 @@ const PublicTrackingPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -87,7 +87,7 @@ const PublicTrackingPage = () => {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8 flex-1">
         {/* Hero Section */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
@@ -318,6 +318,32 @@ const PublicTrackingPage = () => {
           </div>
         )}
       </div>
+      
+      {/* Footer */}
+      <footer className="bg-white border-t mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="text-cen  ter text-sm text-gray-500">
+            Powered by{' '}
+            <a 
+              href="https://iwings.io" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              iwings.io
+            </a>
+            {' '}&{' '}
+            <a 
+              href="https://nextyon.de" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              Nextyon.de
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

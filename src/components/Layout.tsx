@@ -39,6 +39,28 @@ const Layout = ({ children }: LayoutProps) => {
         <main className="flex-1 overflow-auto p-4 lg:p-6">
           {children}
         </main>
+        <footer className="bg-white border-t px-4 lg:px-6 py-3 mt-auto">
+          <div className="text-center text-sm text-gray-500">
+            Powered by{' '}
+            <a 
+              href="https://iwings.io" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              iwings.io
+            </a>
+            {' '}&{' '}
+            <a 
+              href="https://nextyon.de" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              Nextyon.de
+            </a>
+          </div>
+        </footer>
       </div>
     </div>
   );

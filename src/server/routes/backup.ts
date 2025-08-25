@@ -1024,23 +1024,30 @@ async function createUsersAndBranchesFromHistory(usernames: Set<string>): Promis
   return userBranchMap;
 }
 
-// البحث عن المستخدم المناسب لسجل History
-async function findUserForHistoryEntry(username: string, userBranchMap: Map<string, {userId: string, branchId: string}>, defaultUserId: string): Promise<string> {
+// البحث عن المستخدم المناسب لسجل History (يستخدم فقط المستخدمين المحددين)
+async function findUserForHistoryEntry(
+  username: string, 
+  germanyUser: any,
+  switzerlandUser: any,
+  defaultUserId: string
+): Promise<string> {
   if (!username || username.trim() === "" || username === "مستخدم النظام") {
     return defaultUserId;
   }
 
-  const userInfo = userBranchMap.get(username.trim());
-  if (userInfo) {
-    return userInfo.userId;
+  const cleanUsername = username.trim().toLowerCase();
+  
+  // البحث عن تطابق مع المستخدمين المحددين
+  if (cleanUsername.includes("feneradmi") || cleanUsername === "feneradmi") {
+    return germanyUser.id;
+  }
+  
+  if (cleanUsername.includes("delo") || cleanUsername === "delo") {
+    return switzerlandUser.id;
   }
 
-  // إذا لم نجد المستخدم في الخريطة، نبحث في قاعدة البيانات
-  const existingUser = await prisma.user.findFirst({
-    where: { name: username.trim() }
-  });
-
-  return existingUser?.id || defaultUserId;
+  // الافتراضي: المستخدم الافتراضي
+  return defaultUserId;
 }
 
 // تحديد منشئ الشحنة والفرع من أول اسم في History
@@ -1083,6 +1090,40 @@ function getShipmentCreatorFromHistory(allHistoryData: string[]): string | null 
   }
 
   return null;
+}
+
+// تحديد الفرع والمستخدم حسب البلد الأصل
+function determineCreatorAndBranchByOrigin(
+  originCountry: string,
+  germanyUser: any,
+  germanyBranch: any,
+  switzerlandUser: any,
+  switzerlandBranch: any
+): { userId: string; branchId: string; reason: string } {
+  const normalizedOrigin = originCountry.toLowerCase().trim();
+  
+  if (normalizedOrigin.includes("المانيا") || normalizedOrigin.includes("germany") || normalizedOrigin.includes("deutschland")) {
+    return {
+      userId: germanyUser.id,
+      branchId: germanyBranch.id,
+      reason: "البلد الأصل: ألمانيا"
+    };
+  }
+  
+  if (normalizedOrigin.includes("سويسرا") || normalizedOrigin.includes("switzerland") || normalizedOrigin.includes("schweiz")) {
+    return {
+      userId: switzerlandUser.id,
+      branchId: switzerlandBranch.id,
+      reason: "البلد الأصل: سويسرا"
+    };
+  }
+  
+  // الافتراضي: ألمانيا لجميع البلدان الأخرى
+  return {
+    userId: germanyUser.id,
+    branchId: germanyBranch.id,
+    reason: `البلد الأصل: ${originCountry} (افتراضي: ألمانيا)`
+  };
 }
 
 // استيراد ملف CSV
@@ -1193,10 +1234,10 @@ router.post("/import-csv", async (req, res) => {
       }
     }
 
-    // استخراج المستخدمين من بيانات History وإنشاء المستخدمين والفروع
-    console.log("👥 استخراج المستخدمين من بيانات History...");
+    // استخراج المستخدمين من بيانات History للمعلومات فقط (بدون إنشاء مستخدمين جدد)
+    console.log("👥 استخراج المستخدمين من بيانات History للمعلومات...");
     const uniqueUsernames = extractUsersFromHistory(records);
-    const userBranchMap = await createUsersAndBranchesFromHistory(uniqueUsernames);
+    console.log(`ℹ️ تم العثور على ${uniqueUsernames.size} مستخدم في History ولكن لن يتم إنشاؤهم`);
 
     // إنشاء الحالات المطلوبة
     const statusesNeeded = new Set<string>();
@@ -1220,40 +1261,106 @@ router.post("/import-csv", async (req, res) => {
     // الحصول على الحالة الافتراضية
     const defaultStatus = await getOrCreateShipmentStatus("قيد المراجعة");
 
-    // إنشاء فرع افتراضي إذا لم يكن موجود
-    let defaultBranch = await prisma.branch.findFirst();
-    if (!defaultBranch) {
-      defaultBranch = await prisma.branch.create({
+    // إنشاء الفروع المطلوبة
+    console.log("🏢 إنشاء الفروع المطلوبة...");
+    
+    // فرع ألمانيا
+    let germanyBranch = await prisma.branch.findFirst({
+      where: { name: "فرع المانيا" }
+    });
+    if (!germanyBranch) {
+      germanyBranch = await prisma.branch.create({
         data: {
-          name: "الفرع الرئيسي",
-          location: "المكتب الرئيسي",
-          manager: "مدير النظام",
-          email: "main@fenertravel.com",
-          phone: "+000000000000",
+          name: "فرع المانيا",
+          location: "ألمانيا",
+          manager: "feneradmi",
+          email: "germany@fenertravel.de",
+          phone: "+49000000000",
         },
       });
+      console.log("✅ تم إنشاء فرع ألمانيا");
+    }
+
+    // فرع سويسرا
+    let switzerlandBranch = await prisma.branch.findFirst({
+      where: { name: "فرع سويسرا" }
+    });
+    if (!switzerlandBranch) {
+      switzerlandBranch = await prisma.branch.create({
+        data: {
+          name: "فرع سويسرا",
+          location: "سويسرا",
+          manager: "delo",
+          email: "switzerland@fenertravel.de",
+          phone: "+41000000000",
+        },
+      });
+      console.log("✅ تم إنشاء فرع سويسرا");
+    }
+
+    // إنشاء المستخدمين المطلوبين
+    console.log("👥 إنشاء المستخدمين المطلوبين...");
+    const hashedPassword = await bcrypt.hash("123456", 10);
+
+    // مستخدم ألمانيا
+    let germanyUser = await prisma.user.findFirst({
+      where: { email: "feneradmi@fenertravel.de" }
+    });
+    if (!germanyUser) {
+      germanyUser = await prisma.user.create({
+        data: {
+          name: "feneradmi",
+          email: "feneradmi@fenertravel.de",
+          password: hashedPassword,
+          role: UserRole.MANAGER,
+          branchId: germanyBranch.id,
+          isActive: true,
+        },
+      });
+      console.log("✅ تم إنشاء مستخدم ألمانيا: feneradmi@fenertravel.de");
+    }
+
+    // مستخدم سويسرا
+    let switzerlandUser = await prisma.user.findFirst({
+      where: { email: "delo@fenertravel.de" }
+    });
+    if (!switzerlandUser) {
+      switzerlandUser = await prisma.user.create({
+        data: {
+          name: "delo",
+          email: "delo@fenertravel.de",
+          password: hashedPassword,
+          role: UserRole.MANAGER,
+          branchId: switzerlandBranch.id,
+          isActive: true,
+        },
+      });
+      console.log("✅ تم إنشاء مستخدم سويسرا: delo@fenertravel.de");
     }
 
     // إنشاء مستخدم افتراضي إذا لم يكن موجود
-    let defaultUser = await prisma.user.findFirst();
+    let defaultUser = await prisma.user.findFirst({
+      where: { email: "system@fenertravel.com" }
+    });
     if (!defaultUser) {
-      const hashedPassword = await bcrypt.hash("123456", 10);
-
       defaultUser = await prisma.user.create({
         data: {
           name: "مستخدم النظام",
           email: "system@fenertravel.com",
           password: hashedPassword,
-          role: "MANAGER",
-          branchId: defaultBranch.id,
+          role: UserRole.MANAGER,
+          branchId: germanyBranch.id, // تعيين الفرع الافتراضي لألمانيا
         },
       });
+      console.log("✅ تم إنشاء المستخدم الافتراضي");
     }
 
     // استيراد الشحنات
     let successCount = 0;
     let errorCount = 0;
-    let shipmentsWithHistoryCreator = 0; // عداد الشحنات المربوطة بمنشئ من History
+    let shipmentsWithHistoryCreator = 0; // عداد الشحنات التي لها منشئ في History
+    let germanyShipments = 0; // عداد شحنات ألمانيا
+    let switzerlandShipments = 0; // عداد شحنات سويسرا
 
     for (let i = 0; i < records.length; i++) {
       const record = records[i];
@@ -1305,33 +1412,36 @@ router.post("/import-csv", async (req, res) => {
           ? await getOrCreateShipmentStatus(cleaned.status)
           : defaultStatus;
 
-        // تحديد منشئ الشحنة من أول اسم في History
+        // تحديد منشئ الشحنة والفرع حسب البلد الأصل
+        const creatorAndBranch = determineCreatorAndBranchByOrigin(
+          cleaned.origin,
+          germanyUser,
+          germanyBranch,
+          switzerlandUser,
+          switzerlandBranch
+        );
+        
+        let shipmentCreatorId = creatorAndBranch.userId;
+        let shipmentBranchId = creatorAndBranch.branchId;
+        let assignmentReason = creatorAndBranch.reason;
+        
+        // تسجيل معلومة منشئ من History إذا كان متاحاً (للمعلومات فقط)
         const creatorNameFromHistory = getShipmentCreatorFromHistory(cleaned.allHistoryData);
-        
-        let shipmentCreatorId = defaultUser.id;
-        let shipmentBranchId = defaultBranch.id;
-        
         if (creatorNameFromHistory) {
-          // البحث عن المستخدم في الخريطة المنشأة
-          const creatorInfo = userBranchMap.get(creatorNameFromHistory);
-          if (creatorInfo) {
-            shipmentCreatorId = creatorInfo.userId;
-            shipmentBranchId = creatorInfo.branchId;
-            shipmentsWithHistoryCreator++;
-            console.log(`📋 الشحنة ${cleaned.shipmentTitle}: منشئ = ${creatorNameFromHistory}, فرع = ${creatorInfo.branchId}`);
-          } else {
-            // البحث في قاعدة البيانات
-            const existingCreator = await prisma.user.findFirst({
-              where: { name: creatorNameFromHistory }
-            });
-            if (existingCreator && existingCreator.branchId) {
-              shipmentCreatorId = existingCreator.id;
-              shipmentBranchId = existingCreator.branchId;
-              shipmentsWithHistoryCreator++;
-              console.log(`📋 الشحنة ${cleaned.shipmentTitle}: منشئ موجود = ${creatorNameFromHistory}`);
-            }
-          }
+          console.log(`ℹ️ الشحنة ${cleaned.shipmentTitle}: منشئ من History = ${creatorNameFromHistory}, لكن تم التوزيع حسب البلد`);
+          shipmentsWithHistoryCreator++;
         }
+        
+        // تحديث العدادات
+        if (shipmentCreatorId === germanyUser.id) {
+          germanyShipments++;
+        } else if (shipmentCreatorId === switzerlandUser.id) {
+          switzerlandShipments++;
+        }
+        
+        console.log(`📋 الشحنة ${cleaned.shipmentTitle}: ${assignmentReason}`);
+        console.log(`   └── المستخدم: ${shipmentCreatorId === germanyUser.id ? 'feneradmi@fenertravel.de' : 'delo@fenertravel.de'}`);
+        console.log(`   └── الفرع: ${shipmentBranchId === germanyBranch.id ? 'فرع ألمانيا' : 'فرع سويسرا'}`);
 
         // إنشاء الشحنة
         const newShipment = await prisma.shipment.create({
@@ -1390,7 +1500,8 @@ router.post("/import-csv", async (req, res) => {
             // العثور على المستخدم المناسب لهذا السجل
             const historyUserId = await findUserForHistoryEntry(
               historyEntry.user,
-              userBranchMap,
+              germanyUser,
+              switzerlandUser,
               defaultUser.id
             );
 
@@ -1466,29 +1577,45 @@ router.post("/import-csv", async (req, res) => {
         failedImports: errorCount,
         countriesCreated: uniqueCountries.size,
         statusesCreated: statusesNeeded.size,
-        usersExtractedAndCreated: uniqueUsernames.size,
-        branchesCreated: uniqueUsernames.size, // نفس عدد المستخدمين لأن كل مستخدم له فرع
+        usersFoundInHistory: uniqueUsernames.size,
+        predefinedUsers: 2, // feneradmi و delo
+        predefinedBranches: 2, // فرع ألمانيا وفرع سويسرا
         shipmentsWithHistoryCreator: shipmentsWithHistoryCreator,
-        shipmentsWithDefaultCreator: successCount - shipmentsWithHistoryCreator,
+        germanyShipments: germanyShipments,
+        switzerlandShipments: switzerlandShipments,
         historyRecordsProcessed: totalHistoryRecords,
         commentsImported: commentsCount,
         importDate: new Date().toISOString(),
         extractedUsernames: Array.from(uniqueUsernames),
+        branchDistribution: {
+          germany: {
+            user: "feneradmi@fenertravel.de",
+            branch: "فرع ألمانيا",
+            shipments: germanyShipments
+          },
+          switzerland: {
+            user: "delo@fenertravel.de", 
+            branch: "فرع سويسرا",
+            shipments: switzerlandShipments
+          }
+        },
         summary: {
-          message: `تم استيراد ${successCount} شحنة من أصل ${records.length} سجل مع استخراج ${uniqueUsernames.size} مستخدم وربط ${shipmentsWithHistoryCreator} شحنة بمنشئين من History`,
+          message: `تم استيراد ${successCount} شحنة مع توزيعها على المستخدمين المحددين: ${germanyShipments} لألمانيا و ${switzerlandShipments} لسويسرا`,
           details: [
             `✅ شحنات مستوردة: ${successCount}`,
             `❌ شحنات فاشلة: ${errorCount}`,
             `🌍 بلدان منشأة: ${uniqueCountries.size}`,
             `📊 حالات منشأة: ${statusesNeeded.size}`,
-            `👥 مستخدمين مستخرجين ومنشأين: ${uniqueUsernames.size}`,
-            `🏢 فروع منشأة: ${uniqueUsernames.size}`,
-            `📋 شحنات مربوطة بمنشئ من History: ${shipmentsWithHistoryCreator}`,
-            `📋 شحنات مربوطة بالمستخدم الافتراضي: ${successCount - shipmentsWithHistoryCreator}`,
+            `👥 مستخدمين موجودين في History: ${uniqueUsernames.size} (للمعلومات فقط)`,
+            `👤 مستخدمين محددين: 2 (feneradmi و delo)`,
+            `🏢 فروع محددة: 2 (ألمانيا وسويسرا)`,
+            `🇩🇪 شحنات فرع ألمانيا (feneradmi): ${germanyShipments}`,
+            `🇨🇭 شحنات فرع سويسرا (delo): ${switzerlandShipments}`,
+            `📋 شحنات لها منشئ في History: ${shipmentsWithHistoryCreator}`,
             `📚 سجلات تاريخية معالجة: ${totalHistoryRecords}`,
             `💬 ملاحظات مستوردة: ${commentsCount}`,
             `🔄 تم معالجة جميع الأعمدة حتى AL`,
-            `🔗 تم ربط سجلات History بالمستخدمين المناسبين`,
+            `🔗 تم ربط سجلات History بالمستخدمين المحددين فقط`,
           ],
         },
       },
@@ -1502,7 +1629,7 @@ router.post("/import-csv", async (req, res) => {
   }
 });
 
-// استخراج المستخدمين من ملف CSV دون استيراد الشحنات
+// استخراج المستخدمين من ملف CSV للمعلومات فقط (بدون إنشاء)
 router.post("/extract-users-csv", async (req, res) => {
   try {
     // التحقق من وجود الملف
@@ -1530,12 +1657,11 @@ router.post("/extract-users-csv", async (req, res) => {
     const records = parseCSV(csvContent);
     console.log(`تم العثور على ${records.length} سجل في ملف CSV`);
 
-    // استخراج المستخدمين من بيانات History
-    console.log("👥 استخراج المستخدمين من بيانات History...");
+    // استخراج المستخدمين من بيانات History للمعلومات فقط
+    console.log("👥 استخراج المستخدمين من بيانات History للمعلومات...");
     const uniqueUsernames = extractUsersFromHistory(records);
     
-    // إنشاء المستخدمين والفروع
-    const userBranchMap = await createUsersAndBranchesFromHistory(uniqueUsernames);
+    console.log(`ℹ️ تم العثور على ${uniqueUsernames.size} مستخدم في History ولكن لن يتم إنشاؤهم`);
 
     // حساب إحصائيات History
     let totalHistoryRecords = 0;
@@ -1547,22 +1673,24 @@ router.post("/extract-users-csv", async (req, res) => {
 
     res.json({
       success: true,
-      message: "تم استخراج المستخدمين والفروع من بيانات History بنجاح",
+      message: "تم استخراج أسماء المستخدمين من بيانات History للمعلومات فقط",
       extractedData: {
         totalCsvRecords: records.length,
         totalHistoryRecords: totalHistoryRecords,
-        extractedUsers: uniqueUsernames.size,
-        createdBranches: uniqueUsernames.size,
+        usersFoundInHistory: uniqueUsernames.size,
+        predefinedUsersOnly: true,
         usernames: Array.from(uniqueUsernames),
         extractionDate: new Date().toISOString(),
+        note: "لن يتم إنشاء مستخدمين أو فروع جديدة، سيتم استخدام المستخدمين المحددين فقط",
         summary: {
-          message: `تم استخراج ${uniqueUsernames.size} مستخدم فريد من ${totalHistoryRecords} سجل تاريخي`,
+          message: `تم العثور على ${uniqueUsernames.size} مستخدم في ${totalHistoryRecords} سجل تاريخي (للمعلومات فقط)`,
           details: [
             `📄 سجلات CSV: ${records.length}`,
             `📋 سجلات History: ${totalHistoryRecords}`,
-            `👥 مستخدمين مستخرجين: ${uniqueUsernames.size}`,
-            `🏢 فروع منشأة: ${uniqueUsernames.size}`,
-            `🔗 تم ربط كل مستخدم بفرع يحمل نفس الاسم`,
+            `👥 مستخدمين موجودين في History: ${uniqueUsernames.size}`,
+            `👤 مستخدمين محددين فقط: feneradmi و delo`,
+            `🏢 فروع محددة فقط: ألمانيا وسويسرا`,
+            `ℹ️ لن يتم إنشاء مستخدمين أو فروع إضافية`,
           ],
         },
       },
