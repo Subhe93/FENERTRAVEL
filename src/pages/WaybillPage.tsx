@@ -329,7 +329,7 @@ const WaybillPage = () => {
       {/* Footer */}
       <div className="text-center text-xs text-gray-600 mt-4 border-t pt-2">
         <p>Fener Travel - نظام إدارة الشحنات</p>
-        <p>للاستفسارات: support@fenertravel.com | +966 11 123 4567</p>
+        <p>للاستفسارات: info@fenertravel.de | 004915254116010</p>
         <div className="mt-1 text-gray-500">
           <span>رقم التتبع: {shipment.shipmentNumber}</span>
         </div>
