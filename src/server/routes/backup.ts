@@ -1,10 +1,12 @@
 import express from "express";
 import AdmZip from "adm-zip";
+import bcrypt from "bcryptjs";
 import {
   PrismaClient,
   PaymentMethod,
   PaymentStatus,
   CountryType,
+  UserRole,
 } from "@prisma/client";
 import { UploadedFile } from "express-fileupload";
 import * as fs from "fs";
@@ -863,6 +865,114 @@ async function getOrCreateShipmentStatus(statusName: string): Promise<string> {
   return status.id;
 }
 
+// استخراج أسماء المستخدمين من بيانات History
+function extractUsersFromHistory(records: any[]): Set<string> {
+  const uniqueUsernames = new Set<string>();
+
+  records.forEach((record) => {
+    const cleaned = cleanCSVData(record);
+    const historyEntries = parseAllHistoryFields(cleaned.allHistoryData);
+    
+    historyEntries.forEach((entry) => {
+      if (entry.user && entry.user.trim() !== "" && entry.user !== "مستخدم النظام") {
+        // استخراج اسم المستخدم وتنظيفه
+        const cleanUsername = entry.user.trim();
+        if (cleanUsername.length > 2 && !cleanUsername.includes("المراجعة") && !cleanUsername.includes("متوجه")) {
+          uniqueUsernames.add(cleanUsername);
+        }
+      }
+    });
+  });
+
+  console.log(`🔍 تم العثور على ${uniqueUsernames.size} مستخدم فريد من بيانات History:`);
+  uniqueUsernames.forEach(username => console.log(`   - ${username}`));
+
+  return uniqueUsernames;
+}
+
+// إنشاء المستخدمين والفروع من أسماء المستخدمين المستخرجة
+async function createUsersAndBranchesFromHistory(usernames: Set<string>): Promise<Map<string, {userId: string, branchId: string}>> {
+  const userBranchMap = new Map<string, {userId: string, branchId: string}>();
+  const hashedPassword = await bcrypt.hash("123456", 10);
+
+  console.log(`👥 إنشاء ${usernames.size} مستخدم و${usernames.size} فرع جديد...`);
+
+  for (const username of usernames) {
+    try {
+      // إنشاء الفرع بنفس اسم المستخدم
+      let branch = await prisma.branch.findFirst({
+        where: { name: username }
+      });
+
+      if (!branch) {
+        branch = await prisma.branch.create({
+          data: {
+            name: username,
+            location: `مكتب ${username}`,
+            manager: username,
+            email: `${username.toLowerCase()}@fenertravel.com`,
+            phone: `+${Date.now().toString().slice(-10)}`, // رقم هاتف مؤقت
+          }
+        });
+        console.log(`✅ تم إنشاء الفرع: ${username}`);
+      }
+
+      // إنشاء المستخدم
+      let user = await prisma.user.findFirst({
+        where: { 
+          OR: [
+            { name: username },
+            { email: `${username.toLowerCase()}@fenertravel.com` }
+          ]
+        }
+      });
+
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            name: username,
+            email: `${username.toLowerCase()}@fenertravel.com`,
+            password: hashedPassword,
+            role: UserRole.BRANCH, // دور افتراضي
+            branchId: branch.id,
+            isActive: true,
+          }
+        });
+        console.log(`✅ تم إنشاء المستخدم: ${username}`);
+      }
+
+      userBranchMap.set(username, {
+        userId: user.id,
+        branchId: branch.id
+      });
+
+    } catch (error) {
+      console.error(`❌ خطأ في إنشاء المستخدم/الفرع ${username}:`, error);
+    }
+  }
+
+  return userBranchMap;
+}
+
+// البحث عن المستخدم المناسب لسجل History
+async function findUserForHistoryEntry(username: string, userBranchMap: Map<string, {userId: string, branchId: string}>, defaultUserId: string): Promise<string> {
+  if (!username || username.trim() === "" || username === "مستخدم النظام") {
+    return defaultUserId;
+  }
+
+  const userInfo = userBranchMap.get(username.trim());
+  if (userInfo) {
+    return userInfo.userId;
+  }
+
+  // إذا لم نجد المستخدم في الخريطة، نبحث في قاعدة البيانات
+  const existingUser = await prisma.user.findFirst({
+    where: { name: username.trim() }
+  });
+
+  return existingUser?.id || defaultUserId;
+}
+
 // استيراد ملف CSV
 router.post("/import-csv", async (req, res) => {
   try {
@@ -926,6 +1036,11 @@ router.post("/import-csv", async (req, res) => {
       }
     }
 
+    // استخراج المستخدمين من بيانات History وإنشاء المستخدمين والفروع
+    console.log("👥 استخراج المستخدمين من بيانات History...");
+    const uniqueUsernames = extractUsersFromHistory(records);
+    const userBranchMap = await createUsersAndBranchesFromHistory(uniqueUsernames);
+
     // إنشاء الحالات المطلوبة
     const statusesNeeded = new Set<string>();
     records.forEach((record) => {
@@ -965,7 +1080,6 @@ router.post("/import-csv", async (req, res) => {
     // إنشاء مستخدم افتراضي إذا لم يكن موجود
     let defaultUser = await prisma.user.findFirst();
     if (!defaultUser) {
-      const bcrypt = await import("bcryptjs");
       const hashedPassword = await bcrypt.hash("123456", 10);
 
       defaultUser = await prisma.user.create({
@@ -1087,6 +1201,13 @@ router.post("/import-csv", async (req, res) => {
               historyEntry.status
             );
 
+            // العثور على المستخدم المناسب لهذا السجل
+            const historyUserId = await findUserForHistoryEntry(
+              historyEntry.user,
+              userBranchMap,
+              defaultUser.id
+            );
+
             // إنشاء حدث تتبع
             await prisma.trackingEvent.create({
               data: {
@@ -1097,7 +1218,7 @@ router.post("/import-csv", async (req, res) => {
                 notes: `تم بواسطة: ${historyEntry.user} (سجل ${
                   historyIndex + 1
                 })`,
-                updatedById: defaultUser.id,
+                updatedById: historyUserId,
                 eventTime: historyEntry.timestamp,
                 createdAt: historyEntry.timestamp,
               },
@@ -1107,7 +1228,7 @@ router.post("/import-csv", async (req, res) => {
             await prisma.shipmentHistory.create({
               data: {
                 shipmentId: newShipment.id,
-                userId: defaultUser.id,
+                userId: historyUserId,
                 action: "تحديث الحالة",
                 field: "status",
                 oldValue: null,
@@ -1152,26 +1273,32 @@ router.post("/import-csv", async (req, res) => {
     res.json({
       success: true,
       message:
-        "تم استيراد ملف CSV بنجاح مع معالجة شاملة لجميع البيانات والملاحظات",
+        "تم استيراد ملف CSV بنجاح مع استخراج المستخدمين والفروع من بيانات History",
       importedData: {
         totalRecords: records.length,
         successfulImports: successCount,
         failedImports: errorCount,
         countriesCreated: uniqueCountries.size,
         statusesCreated: statusesNeeded.size,
+        usersExtractedAndCreated: uniqueUsernames.size,
+        branchesCreated: uniqueUsernames.size, // نفس عدد المستخدمين لأن كل مستخدم له فرع
         historyRecordsProcessed: totalHistoryRecords,
         commentsImported: commentsCount,
         importDate: new Date().toISOString(),
+        extractedUsernames: Array.from(uniqueUsernames),
         summary: {
-          message: `تم استيراد ${successCount} شحنة من أصل ${records.length} سجل مع معالجة ${totalHistoryRecords} سجل تاريخي و ${commentsCount} ملاحظة`,
+          message: `تم استيراد ${successCount} شحنة من أصل ${records.length} سجل مع استخراج ${uniqueUsernames.size} مستخدم وإنشاء ${uniqueUsernames.size} فرع من بيانات History`,
           details: [
             `✅ شحنات مستوردة: ${successCount}`,
             `❌ شحنات فاشلة: ${errorCount}`,
             `🌍 بلدان منشأة: ${uniqueCountries.size}`,
             `📊 حالات منشأة: ${statusesNeeded.size}`,
+            `👥 مستخدمين مستخرجين ومنشأين: ${uniqueUsernames.size}`,
+            `🏢 فروع منشأة: ${uniqueUsernames.size}`,
             `📋 سجلات تاريخية معالجة: ${totalHistoryRecords}`,
             `💬 ملاحظات مستوردة: ${commentsCount}`,
             `🔄 تم معالجة جميع الأعمدة حتى AL`,
+            `🔗 تم ربط سجلات History بالمستخدمين المناسبين`,
           ],
         },
       },
@@ -1181,6 +1308,80 @@ router.post("/import-csv", async (req, res) => {
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : "فشل في استيراد ملف CSV",
+    });
+  }
+});
+
+// استخراج المستخدمين من ملف CSV دون استيراد الشحنات
+router.post("/extract-users-csv", async (req, res) => {
+  try {
+    // التحقق من وجود الملف
+    if (!req.files || !req.files.csvFile) {
+      return res.status(400).json({
+        success: false,
+        error: "لم يتم تحديد ملف CSV",
+      });
+    }
+
+    const csvFile = req.files.csvFile as UploadedFile;
+
+    // التحقق من نوع الملف
+    if (!csvFile.name.endsWith(".csv")) {
+      return res.status(400).json({
+        success: false,
+        error: "يجب أن يكون الملف من نوع CSV",
+      });
+    }
+
+    // قراءة محتوى الملف
+    const csvContent = csvFile.data.toString("utf-8");
+
+    // تحليل البيانات
+    const records = parseCSV(csvContent);
+    console.log(`تم العثور على ${records.length} سجل في ملف CSV`);
+
+    // استخراج المستخدمين من بيانات History
+    console.log("👥 استخراج المستخدمين من بيانات History...");
+    const uniqueUsernames = extractUsersFromHistory(records);
+    
+    // إنشاء المستخدمين والفروع
+    const userBranchMap = await createUsersAndBranchesFromHistory(uniqueUsernames);
+
+    // حساب إحصائيات History
+    let totalHistoryRecords = 0;
+    records.forEach((record) => {
+      const cleaned = cleanCSVData(record);
+      const historyEntries = parseAllHistoryFields(cleaned.allHistoryData);
+      totalHistoryRecords += historyEntries.length;
+    });
+
+    res.json({
+      success: true,
+      message: "تم استخراج المستخدمين والفروع من بيانات History بنجاح",
+      extractedData: {
+        totalCsvRecords: records.length,
+        totalHistoryRecords: totalHistoryRecords,
+        extractedUsers: uniqueUsernames.size,
+        createdBranches: uniqueUsernames.size,
+        usernames: Array.from(uniqueUsernames),
+        extractionDate: new Date().toISOString(),
+        summary: {
+          message: `تم استخراج ${uniqueUsernames.size} مستخدم فريد من ${totalHistoryRecords} سجل تاريخي`,
+          details: [
+            `📄 سجلات CSV: ${records.length}`,
+            `📋 سجلات History: ${totalHistoryRecords}`,
+            `👥 مستخدمين مستخرجين: ${uniqueUsernames.size}`,
+            `🏢 فروع منشأة: ${uniqueUsernames.size}`,
+            `🔗 تم ربط كل مستخدم بفرع يحمل نفس الاسم`,
+          ],
+        },
+      },
+    });
+  } catch (error) {
+    console.error("خطأ في استخراج المستخدمين من ملف CSV:", error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "فشل في استخراج المستخدمين من ملف CSV",
     });
   }
 });

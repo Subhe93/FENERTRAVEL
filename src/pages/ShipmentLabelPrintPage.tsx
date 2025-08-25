@@ -292,8 +292,6 @@ const ShipmentLabelPrintPage = () => {
             text-align: right;
             direction: rtl;
             overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
             font-family: Tahoma, Arial, sans-serif;
           }
           
@@ -347,7 +345,7 @@ const ShipmentLabelPrintPage = () => {
                   />
                 </div>
                 <div className="w-full text-right" style={{direction: 'rtl', fontFamily: 'Tahoma, Arial, sans-serif'}}>
-                  <div className="text-sm font-bold text-blue-600 mb-1">Fener Travel</div>
+                  {/* <div className="text-sm font-bold text-blue-600 mb-1">Fener Travel</div> */}
                   <div className="text-sm text-gray-600 mb-2">شركة فنر للسياحة والسفر والشحن أهلاً وسهلاً بكم</div>
                   <div className="text-lg font-bold text-black">
                     الى : {shipment.destinationCountryName || shipment.destinationCountry?.name || 'سوريا'}
@@ -373,35 +371,35 @@ const ShipmentLabelPrintPage = () => {
               {/* Details Section - Preview */}
               <div style={{direction: 'rtl', textAlign: 'right', fontFamily: 'Tahoma, Arial, sans-serif'}}>
                 <div className="font-bold mb-2 border-b-2 border-black pb-1" style={{fontSize: '18px'}}>تفاصيل المستلم:</div>
-                
-                <div className="flex justify-between items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
-                  <span className="text-black font-bold" style={{direction: 'rtl'}}>{shipment.recipientName}</span>
-                  <span className="text-gray-600">:اسم المستلم</span>
+
+                <div className="flex justify-start items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
+                  <span className="text-gray-600">اسم المستلم :</span>
+                  <span className="text-black font-bold" style={{ direction: 'rtl' }}>{shipment.recipientName}</span>
                 </div>
-                
-                <div className="flex justify-between items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
-                  <span className="text-black font-bold" style={{direction: 'rtl'}}>{shipment.recipientPhone}</span>
-                  <span className="text-gray-600">:رقم الهاتف</span>
+
+                <div className="flex justify-start items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
+                  <span className="text-gray-600">رقم الهاتف :</span>
+                  <span className="text-black font-bold" style={{ direction: 'rtl' }}>{shipment.recipientPhone}</span>
                 </div>
-                
-                <div className="flex justify-between items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
-                  <span className="text-black font-bold" style={{direction: 'rtl'}}>{shipment.recipientAddress || 'حمص'}</span>
-                  <span className="text-gray-600">:العنوان-المدينة</span>
+
+                <div className="flex justify-start items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
+                  <span className="text-gray-600">العنوان-المدينة :</span>
+                  <span className="text-black font-bold" style={{ direction: 'rtl' }}>{shipment.recipientAddress || 'حمص'}</span>
                 </div>
-                
-                <div className="flex justify-between items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
-                  <span className="text-black font-bold" style={{direction: 'rtl'}}>{shipment.weight}</span>
-                  <span className="text-gray-600">:الوزن</span>
+
+                <div className="flex justify-start items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
+                  <span className="text-gray-600">الوزن :</span>
+                  <span className="text-black font-bold" style={{ direction: 'rtl' }}>{shipment.weight}</span>
                 </div>
-                
-                <div className="flex justify-between items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
-                  <span className="text-black font-bold" style={{direction: 'rtl'}}>{shipment.numberOfBoxes}</span>
-                  <span className="text-gray-600">:عدد الصناديق</span>
+
+                <div className="flex justify-start items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
+                  <span className="text-gray-600">عدد الصناديق :</span>
+                  <span className="text-black font-bold" style={{ direction: 'rtl' }}>{shipment.numberOfBoxes}</span>
                 </div>
-                
-                <div className="flex justify-between items-center py-1" style={{fontSize: '18px'}}>
-                  <span className="text-black font-bold" style={{direction: 'rtl'}}>{shipment.content || 'البسة واحذية'}</span>
-                  <span className="text-gray-600">:المحتوى</span>
+
+                <div className="flex justify-start items-center py-1" style={{fontSize: '18px'}}>
+                  <span className="text-gray-600">المحتوى :</span>
+                  <span className="text-black font-bold" style={{ direction: 'rtl' }}>{shipment.content || 'البسة واحذية'}</span>
                 </div>
               </div>
             </div>
@@ -438,7 +436,7 @@ const ShipmentLabelPrintPage = () => {
             />
           </div>
           <div className="company-info">
-            <div className="company-name">Fener Travel</div>
+            {/* <div className="company-name">Fener Travel</div> */}
             <div className="company-desc">شركة فنر للسياحة والسفر والشحن أهلاً وسهلاً بكم</div>
             <div className="destination">
               الى : {shipment.destinationCountryName || shipment.destinationCountry?.name || 'سوريا'}
@@ -467,33 +465,33 @@ const ShipmentLabelPrintPage = () => {
           <div className="section-title">تفاصيل المستلم:</div>
           
           <div className="detail-row">
+            <span className="detail-label">اسم المستلم : </span>
             <span className="detail-value">{shipment.recipientName}</span>
-            <span className="detail-label">:اسم المستلم</span>
           </div>
           
           <div className="detail-row">
+            <span className="detail-label">رقم الهاتف : </span>
             <span className="detail-value">{shipment.recipientPhone}</span>
-            <span className="detail-label">:رقم الهاتف</span>
           </div>
           
           <div className="detail-row">
+            <span className="detail-label">العنوان-المدينة :</span>
             <span className="detail-value">{shipment.recipientAddress || 'حمص'}</span>
-            <span className="detail-label">:العنوان-المدينة</span>
           </div>
           
           <div className="detail-row">
+            <span className="detail-label">الوزن :</span>
             <span className="detail-value">{shipment.weight}</span>
-            <span className="detail-label">:الوزن</span>
           </div>
           
           <div className="detail-row">
+            <span className="detail-label">عدد الصناديق :</span>
             <span className="detail-value">{shipment.numberOfBoxes}</span>
-            <span className="detail-label">:عدد الصناديق</span>
           </div>
           
           <div className="detail-row">
+            <span className="detail-label">المحتوى :</span>
             <span className="detail-value">{shipment.content || 'البسة واحذية'}</span>
-            <span className="detail-label">:المحتوى</span>
           </div>
         </div>
       </div>
