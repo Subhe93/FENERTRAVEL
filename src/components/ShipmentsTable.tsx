@@ -226,6 +226,14 @@ const ShipmentsTable = () => {
     }
   };
 
+  // إضافة وظيفة إلغاء الفرز
+  const clearSorting = () => {
+    setSorting({
+      sortBy: 'createdAt',
+      sortOrder: 'desc'
+    });
+  };
+
   const handleSelectShipment = (shipmentId: string, checked: boolean) => {
     if (checked) {
       setSelectedShipments(prev => [...prev, shipmentId]);
@@ -889,6 +897,16 @@ const ShipmentsTable = () => {
             <Download className="w-4 h-4" />
             تصدير كل البيانات
           </Button>
+
+          <Button
+            onClick={clearSorting}
+            variant="outline"
+            className="flex items-center gap-2 text-orange-600 border-orange-300 hover:bg-orange-50"
+            title="إلغاء الفرز وإعادة ترتيب الشحنات حسب تاريخ الإنشاء (الأحدث أولاً)"
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            إلغاء الفرز
+          </Button>
         </div>
       </div>
 
@@ -1376,9 +1394,13 @@ const ShipmentsTable = () => {
               </div>
             )}
 
-            <div className="flex justify-end mt-6">
+            <div className="flex justify-end mt-6 gap-2">
               {isLoading ? (<div className='flex flex-nowrap items-center gap-3'> <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
               <div className="text-gray-500">جاري تحميل البيانات...</div></div>): "" }
+              {/* <Button variant="outline" size={'sm'} className='bg-white text-orange-600 border-orange-300 hover:bg-orange-50' onClick={clearSorting}>
+                <ArrowUpDown className="w-4 h-4" />
+                إلغاء الفرز
+              </Button> */}
               <Button variant="outline" size={'sm'} className='bg-white text-gray-500 border-[#fff]' onClick={clearAllFilters}>
                <ResetIcon className='w-5'></ResetIcon>
                 مسح جميع الفلاتر
@@ -1417,6 +1439,16 @@ const ShipmentsTable = () => {
                   <Download className="w-3 h-3 mr-1" />
                   تصدير
                 </Button>
+                {/* <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearSorting}
+                  className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                  title="إلغاء الفرز وإعادة ترتيب الشحنات حسب تاريخ الإنشاء (الأحدث أولاً)"
+                >
+                  <ArrowUpDown className="w-4 h-4 mr-1" />
+                  إلغاء الفرز
+                </Button> */}
                 {/* <Button
                   variant="outline"
                   size="sm"
@@ -1468,8 +1500,14 @@ const ShipmentsTable = () => {
 
       {/* Results Summary */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-sm text-gray-600">
-        <div>
-          عرض {((pagination.page - 1) * pagination.limit) + 1} إلى {Math.min(pagination.page * pagination.limit, pagination.total)} من {pagination.total} شحنة
+        <div className="flex flex-col gap-1">
+          <div>
+            عرض {((pagination.page - 1) * pagination.limit) + 1} إلى {Math.min(pagination.page * pagination.limit, pagination.total)} من {pagination.total} شحنة
+          </div>
+          {/* <div className="text-xs text-blue-600 flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            مرتبة حسب تاريخ الإنشاء (الأحدث أولاً)
+          </div> */}
         </div>
         <div className="flex items-center gap-2">
           <span>عرض</span>

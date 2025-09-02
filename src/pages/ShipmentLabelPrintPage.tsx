@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
 import { Button } from '@/components/ui/button';
@@ -6,16 +6,20 @@ import {
   ArrowLeft, 
   Package, 
   Printer,
-  Loader2
+  Loader2,
+  Download
 } from 'lucide-react';
 import Barcode from '@/components/ui/barcode';
 import { toast } from 'sonner';
 import { type Shipment } from '@/lib/api-client';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const ShipmentLabelPrintPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { shipments, getShipmentById } = useData();
+  const printRef = useRef<HTMLDivElement>(null);
 
   // Local state for the shipment and loading
   const [shipment, setShipment] = useState<Shipment | null>(null);
@@ -123,6 +127,72 @@ const ShipmentLabelPrintPage = () => {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleExportPDF = async () => {
+    if (!shipment || !printRef.current) return;
+
+    try {
+      toast.loading('جاري إنشاء ملف PDF...');
+      
+      // إزالة الـ padding والـ margin من الكونتينر الرئيسي
+      const mainContainer = document.querySelector('.for-pdf-print');
+      if (mainContainer) {
+        mainContainer.classList.add('p-0', 'm-0');
+      }
+      
+      // انتظار تحميل الباركود والصور
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // تحويل العنصر إلى canvas
+      const canvas = await html2canvas(printRef.current, {
+        width: 384, // 4 inches * 96 DPI
+        height: 576, // 6 inches * 96 DPI
+        scale: 3, // لتحسين الجودة
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        imageTimeout: 5000,
+        removeContainer: true,
+        foreignObjectRendering: false
+      });
+      
+      // إعادة الـ padding والـ margin للكونتينر الرئيسي
+      if (mainContainer) {
+        mainContainer.classList.remove('p-0', 'm-0');
+      }
+      
+      // إنشاء PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'in',
+        format: [4, 6] // 4×6 إنش
+      });
+      
+      // إضافة الصورة إلى PDF
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      pdf.addImage(imgData, 'PNG', 0, 0, 4, 6);
+      
+      // حفظ الملف
+      const fileName = `shipment-label-${shipment.shipmentNumber}.pdf`;
+      pdf.save(fileName);
+      
+      toast.dismiss();
+      toast.success('تم تصدير ملف PDF بنجاح');
+      
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      
+      // إعادة الـ padding والـ margin للكونتينر الرئيسي في حالة الخطأ
+      const mainContainer = document.querySelector('.for-pdf-print');
+      if (mainContainer) {
+        mainContainer.classList.remove('p-0', 'm-0');
+      }
+      
+      toast.dismiss();
+      toast.error('حدث خطأ أثناء تصدير ملف PDF');
+    }
   };
 
   return (
@@ -315,29 +385,45 @@ const ShipmentLabelPrintPage = () => {
               العودة
             </Button>
             
-            <Button onClick={handlePrint} className="flex items-center gap-2">
-              <Printer className="w-4 h-4" />
-              طباعة الملصق
-            </Button>
+            <div className="flex gap-3">
+              <Button 
+                variant="outline"
+                onClick={handleExportPDF} 
+                className="flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                تصدير PDF
+              </Button>
+              
+              <Button onClick={handlePrint} className="flex items-center gap-2">
+                <Printer className="w-4 h-4" />
+                طباعة الملصق
+              </Button>
+            </div>
           </div>
           
           <div className="text-center mb-6">
             <h1 className="text-2xl font-bold text-gray-900 mb-2">ملصق طباعة الشحنة</h1>
             <p className="text-gray-600">رقم الشحنة: {shipment.shipmentNumber}</p>
             <p className="text-sm text-gray-500">مخصص لطابعة DYMO LabelWriter 5XL - قياس 4×6 بوصة</p>
+            <p className="text-xs text-gray-400 mt-1">يمكنك طباعة الملصق أو تصديره كملف PDF</p>
           </div>
 
           {/* Preview */}
-          <div className="bg-white border-2 border-gray-300 rounded-lg p-6 shadow-lg mx-auto" style={{width: '4in', minHeight: '6in', fontFamily: 'Tahoma, Arial, sans-serif'}}>
-            <div className="text-center text-gray-500 text-sm mb-4">معاينة الملصق</div>
-            <div className="border border-gray-200 rounded p-2 bg-white" style={{fontSize: '24px', fontFamily: 'Tahoma, Arial, sans-serif'}}>
+          <div className="bg-white border-2 border-gray-300 rounded-lg  shadow-lg mx-auto" style={{width: '4in', minHeight: '6in', fontFamily: 'Tahoma, Arial, sans-serif'}}>
+           
+            <div 
+              ref={printRef}
+              className="border border-gray-200 rounded p-2 bg-white for-pdf-print" 
+              style={{fontSize: '24px', fontFamily: 'Tahoma, Arial, sans-serif'}}
+            >
               {/* Header Section - Preview */}
               <div className="flex flex-col items-center border-b border-black pb-2 mb-3">
                 <div className="w-full text-right">
                   <img 
                     src="/img/fenerlogo.webp" 
                     alt="Fener Travel Logo" 
-                    className="h-16 w-auto max-w-32 object-contain"
+                    className="max-w-[200px] object-contain"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.style.display = 'none';
@@ -354,45 +440,45 @@ const ShipmentLabelPrintPage = () => {
               </div>
 
               {/* Barcode Section - Preview */}
-              <div className="text-center my-3 py-2 border-b border-gray-300">
+              <div className="text-center my-1 py-2 border-b border-gray-300">
                 <Barcode 
                   value={shipment.shipmentNumber}
-                  height={60}
-                  width={2}
-                  fontSize={12}
-                  margin={0}
+                  height={80}
+                  width={2.5}
+                  fontSize={16}
+                  margin={4}
                   background="#ffffff"
                   lineColor="#000000"
                   displayValue={false}
                 />
-                <div className="text-lg font-bold mt-2 tracking-wide" style={{fontSize: '18px'}}>{shipment.shipmentNumber}</div>
+                <div className="text-lg tracking-wide" style={{fontSize: '14px'}}>{shipment.shipmentNumber}</div>
               </div>
 
               {/* Details Section - Preview */}
               <div style={{direction: 'rtl', textAlign: 'right', fontFamily: 'Tahoma, Arial, sans-serif'}}>
-                <div className="font-bold mb-2 border-b-2 border-black pb-1" style={{fontSize: '18px'}}>تفاصيل المستلم:</div>
+                <div className="font-bold  border-b-2 border-black pb-1" style={{fontSize: '18px'}}>تفاصيل المستلم:</div>
 
-                <div className="flex justify-start items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
+                <div className="flex justify-start items-center  py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
                   <span className="text-gray-600">اسم المستلم :</span>
                   <span className="text-black font-bold" style={{ direction: 'rtl' }}>{shipment.recipientName}</span>
                 </div>
 
-                <div className="flex justify-start items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
+                <div className="flex justify-start items-center  py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
                   <span className="text-gray-600">رقم الهاتف :</span>
                   <span className="text-black font-bold" style={{ direction: 'rtl' }}>{shipment.recipientPhone}</span>
                 </div>
 
-                <div className="flex justify-start items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
+                <div className="flex justify-start items-center  py-1 border-b border-gray-200" style={{fontSize: '18px'}}> 
                   <span className="text-gray-600">العنوان-المدينة :</span>
                   <span className="text-black font-bold" style={{ direction: 'rtl' }}>{shipment.recipientAddress || 'حمص'}</span>
                 </div>
 
-                <div className="flex justify-start items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
+                <div className="flex justify-start items-center  py-1 border-b border-gray-200" style={{fontSize: '18px'}}> 
                   <span className="text-gray-600">الوزن :</span>
                   <span className="text-black font-bold" style={{ direction: 'rtl' }}>{shipment.weight}</span>
                 </div>
 
-                <div className="flex justify-start items-center mb-2 py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
+                <div className="flex justify-start items-center  py-1 border-b border-gray-200" style={{fontSize: '18px'}}>
                   <span className="text-gray-600">عدد الصناديق :</span>
                   <span className="text-black font-bold" style={{ direction: 'rtl' }}>{shipment.numberOfBoxes}</span>
                 </div>

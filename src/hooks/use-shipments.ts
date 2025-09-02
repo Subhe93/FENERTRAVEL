@@ -64,7 +64,7 @@ export const useShipments = (initialLimit: number = 25): UseShipmentsReturn => {
   const [error, setError] = useState<string | null>(null);
   const [filters, setFiltersState] = useState<ShipmentsFilters>({});
   const [sorting, setSortingState] = useState<ShipmentsSorting>({
-    sortBy: "receivingDate",
+    sortBy: "createdAt",
     sortOrder: "desc",
   });
 
