@@ -74,7 +74,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { ResetIcon } from '@radix-ui/react-icons';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Label } from '@/components/ui/label';
@@ -405,83 +405,210 @@ const ShipmentsTable = () => {
     setFilters({ [key]: value === '' ? undefined : value });
   };
 
-  const exportToExcel = () => {
-    const selectedShipmentData = selectedShipments.length > 0 
+  const exportToExcel = async () => {
+    const selectedShipmentData = selectedShipments.length > 0
       ? shipments.filter(s => selectedShipments.includes(s.id))
       : shipments;
-    
+
     const totalWeight = selectedShipmentData.reduce((sum, s) => sum + Number(s.weight || 0), 0);
     const totalBoxes = selectedShipmentData.reduce((sum, s) => sum + Number(s.numberOfBoxes || 0), 0);
 
-    // Add summary row first
-    const exportData = [{
-      'رقم الشحنة': 'المجموع',
-      'المرسل': '',
-      'هاتف المرسل': '',
-      'عنوان المرسل': '',
-      'المستلم': '',
-      'هاتف المستلم': '',
-      'عنوان المستلم': '',
-      'الوزن': Number(totalWeight.toFixed(2)),
-      'عدد الصناديق': totalBoxes,
-      'بلد الأصل': '',
-      'بلد الوجهة': '',
-      'المحتوى': '',
-      'طريقة الدفع': '',
-      'الفرع': '',
-      'الحالة': '',
-      'تاريخ الاستلام': '',
-      'التسليم المتوقع': '',
-      'الملاحظات': ''
-    }];
+    const header = [
+      'رقم الشحنة', 'المرسل', 'هاتف المرسل', 'عنوان المرسل',
+      'المستلم', 'هاتف المستلم', 'عنوان المستلم', 'الوزن',
+      'عدد الصناديق', 'بلد الأصل', 'بلد الوجهة', 'المحتوى',
+      'طريقة الدفع', 'الفرع', 'الحالة', 'تاريخ الاستلام',
+      'التسليم المتوقع', 'الملاحظات'
+    ];
 
-    // Add individual shipment data
-    const shipmentData = selectedShipmentData.map(shipment => ({
-      'رقم الشحنة': shipment.shipmentNumber,
-      'المرسل': shipment.senderName,
-      'هاتف المرسل': shipment.senderPhone,
-      'عنوان المرسل': shipment.senderAddress,
-      'المستلم': shipment.recipientName,
-      'هاتف المستلم': shipment.recipientPhone,
-      'عنوان المستلم': shipment.recipientAddress,
-      'الوزن': Number(shipment.weight),
-      'عدد الصناديق': shipment.numberOfBoxes,
-      'بلد الأصل': typeof shipment.originCountry === 'object' ? shipment.originCountry?.name : shipment.originCountry,
-      'بلد الوجهة': typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name : shipment.destinationCountry,
-      'المحتوى': shipment.content,
-      'طريقة الدفع': getPaymentMethodText(shipment.paymentMethod),
-      'الفرع': typeof shipment.branch === 'object' ? shipment.branch?.name : shipment.branchName,
-      'الحالة': typeof shipment.status === 'object' ? shipment.status?.name : shipment.status,
-      'تاريخ الاستلام': shipment.receivingDate,
-      'التسليم المتوقع': shipment.expectedDeliveryDate,
-      'الملاحظات': shipment.notes
-    }));
+    // إنشاء مصنف Excel جديد
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('الشحنات');
 
-    exportData.push(...shipmentData);
+    // إضافة صف الملخص
+    const summaryRow = worksheet.addRow([
+      'المجموع', '', '', '', '', '', '',
+      Number(totalWeight.toFixed(2)), totalBoxes,
+      '', '', '', '', '', '', '', '', ''
+    ]);
 
-    // إنشاء الورقة بدون عناوين أولاً
-    const ws = XLSX.utils.aoa_to_sheet([]);
-    
-    // إضافة سطر المجموع في الأعلى
-    XLSX.utils.sheet_add_aoa(ws, [
-      ['المجموع', '', '', '', '', '', '', Number(totalWeight.toFixed(2)), totalBoxes, '', '', '', '', '', '', '', '']
-    ], { origin: 'A1' });
-    
-    // إضافة بيانات الشحنات مع العناوين
-    XLSX.utils.sheet_add_json(ws, exportData.slice(1), { 
-      origin: 'A3',
-      header: [
-        'رقم الشحنة', 'المرسل', 'هاتف المرسل', 'عنوان المرسل', 
-        'المستلم', 'هاتف المستلم', 'عنوان المستلم', 'الوزن', 
-        'عدد الصناديق', 'بلد الأصل', 'بلد الوجهة', 'المحتوى', 
-        'طريقة الدفع', 'الفرع', 'الحالة', 'تاريخ الاستلام', 
-        'التسليم المتوقع', 'الملاحظات'
-      ]
+    // إضافة صف فارغ
+    worksheet.addRow([]);
+
+    // إضافة العناوين
+    const headerRow = worksheet.addRow(header);
+
+    // إضافة البيانات
+    selectedShipmentData.forEach(shipment => {
+      worksheet.addRow([
+        shipment.shipmentNumber,
+        shipment.senderName,
+        shipment.senderPhone,
+        shipment.senderAddress,
+        shipment.recipientName,
+        shipment.recipientPhone,
+        shipment.recipientAddress,
+        Number(shipment.weight),
+        shipment.numberOfBoxes,
+        typeof shipment.originCountry === 'object' ? shipment.originCountry?.name : shipment.originCountry,
+        typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name : shipment.destinationCountry,
+        shipment.content,
+        getPaymentMethodText(shipment.paymentMethod),
+        typeof shipment.branch === 'object' ? shipment.branch?.name : shipment.branchName,
+        typeof shipment.status === 'object' ? shipment.status?.name : shipment.status,
+        shipment.receivingDate ? new Date(shipment.receivingDate).toLocaleDateString() : '',
+        shipment.expectedDeliveryDate ? new Date(shipment.expectedDeliveryDate).toLocaleDateString() : '',
+        shipment.notes
+      ]);
     });
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'الشحنات');
-    XLSX.writeFile(wb, `shipments_${new Date().toISOString().split('T')[0]}.xlsx`);
+    // تطبيق التنسيق على صف الملخص
+    summaryRow.eachCell((cell) => {
+      cell.font = { bold: true, size: 12 };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFFF00' } // أصفر
+      };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = {
+        top: { style: 'medium', color: { argb: 'FF000000' } },
+        bottom: { style: 'medium', color: { argb: 'FF000000' } },
+        left: { style: 'thin', color: { argb: 'FF000000' } },
+        right: { style: 'thin', color: { argb: 'FF000000' } }
+      };
+    });
+
+    // تطبيق التنسيق على صف العناوين
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF0000FF' } // أزرق
+      };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF000000' } },
+        bottom: { style: 'thin', color: { argb: 'FF000000' } },
+        left: { style: 'thin', color: { argb: 'FF000000' } },
+        right: { style: 'thin', color: { argb: 'FF000000' } }
+      };
+    });
+
+    // تطبيق التنسيق على جميع الخلايا حتى الفارغة منها
+    const totalRows = worksheet.rowCount;
+    const totalCols = header.length;
+    
+    for (let rowNum = 1; rowNum <= totalRows; rowNum++) {
+      for (let colNum = 1; colNum <= totalCols; colNum++) {
+        const cell = worksheet.getCell(rowNum, colNum);
+        
+        if (rowNum === 1) {
+          // تنسيق صف الملخص
+          cell.font = { bold: true, size: 12 };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFF00' } // أصفر
+          };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = {
+            top: { style: 'medium', color: { argb: 'FF000000' } },
+            bottom: { style: 'medium', color: { argb: 'FF000000' } },
+            left: { style: 'thin', color: { argb: 'FF000000' } },
+            right: { style: 'thin', color: { argb: 'FF000000' } }
+          };
+        } else if (rowNum === 3) {
+          // تنسيق صف العناوين
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF0000FF' } // أزرق
+          };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FF000000' } },
+            bottom: { style: 'thin', color: { argb: 'FF000000' } },
+            left: { style: 'thin', color: { argb: 'FF000000' } },
+            right: { style: 'thin', color: { argb: 'FF000000' } }
+          };
+        } else if (rowNum > 3) {
+          // تنسيق خلايا البيانات
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF0F8FF' } // أزرق فاتح
+          };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FF000000' } },
+            bottom: { style: 'thin', color: { argb: 'FF000000' } },
+            left: { style: 'thin', color: { argb: 'FF000000' } },
+            right: { style: 'thin', color: { argb: 'FF000000' } }
+          };
+        }
+      }
+    }
+
+    // تحديد عرض الأعمدة بناءً على المحتوى الفعلي
+    const columnWidths = header.map((_, colIndex) => {
+      let maxLength = 0;
+      
+      // حساب طول العنوان
+      maxLength = Math.max(maxLength, header[colIndex]?.length || 0);
+      
+      // حساب طول صف الملخص
+      const summaryValue = colIndex === 0 ? 'المجموع' : 
+                          colIndex === 7 ? Number(totalWeight.toFixed(2)).toString() :
+                          colIndex === 8 ? totalBoxes.toString() : '';
+      maxLength = Math.max(maxLength, summaryValue.length);
+      
+      // حساب طول البيانات
+      selectedShipmentData.forEach(shipment => {
+        let cellValue = '';
+        switch (colIndex) {
+          case 0: cellValue = shipment.shipmentNumber || ''; break;
+          case 1: cellValue = shipment.senderName || ''; break;
+          case 2: cellValue = shipment.senderPhone || ''; break;
+          case 3: cellValue = shipment.senderAddress || ''; break;
+          case 4: cellValue = shipment.recipientName || ''; break;
+          case 5: cellValue = shipment.recipientPhone || ''; break;
+          case 6: cellValue = shipment.recipientAddress || ''; break;
+          case 7: cellValue = Number(shipment.weight).toString(); break;
+          case 8: cellValue = shipment.numberOfBoxes?.toString() || ''; break;
+          case 9: cellValue = typeof shipment.originCountry === 'object' ? shipment.originCountry?.name || '' : shipment.originCountry || ''; break;
+          case 10: cellValue = typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name || '' : shipment.destinationCountry || ''; break;
+          case 11: cellValue = shipment.content || ''; break;
+          case 12: cellValue = getPaymentMethodText(shipment.paymentMethod); break;
+          case 13: cellValue = typeof shipment.branch === 'object' ? shipment.branch?.name || '' : shipment.branchName || ''; break;
+          case 14: cellValue = typeof shipment.status === 'object' ? shipment.status?.name || '' : shipment.status || ''; break;
+          case 15: cellValue = shipment.receivingDate ? new Date(shipment.receivingDate).toLocaleDateString() : ''; break;
+          case 16: cellValue = shipment.expectedDeliveryDate ? new Date(shipment.expectedDeliveryDate).toLocaleDateString() : ''; break;
+          case 17: cellValue = shipment.notes || ''; break;
+        }
+        maxLength = Math.max(maxLength, cellValue.length);
+      });
+      
+      // إضافة مساحة إضافية وتحديد حد أدنى
+      return Math.max(maxLength + 3, 12);
+    });
+
+    // تطبيق عرض الأعمدة
+    worksheet.columns.forEach((column, index) => {
+      column.width = columnWidths[index];
+    });
+
+    // حفظ الملف
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `shipments_${new Date().toISOString().split('T')[0]}.xlsx`;
+    link.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const exportFilteredToExcel = async () => {
@@ -494,82 +621,210 @@ const ShipmentsTable = () => {
         const totalWeight = filteredShipments.reduce((sum, s) => sum + Number(s.weight || 0), 0);
         const totalBoxes = filteredShipments.reduce((sum, s) => sum + Number(s.numberOfBoxes || 0), 0);
 
-        // Add summary row first
-        const exportData = [{
-          'رقم الشحنة': 'المجموع',
-          'المرسل': '',
-          'هاتف المرسل': '',
-          'عنوان المرسل': '',
-          'المستلم': '',
-          'هاتف المستلم': '',
-          'عنوان المستلم': '',
-          'الوزن': Number(totalWeight.toFixed(2)),
-          'عدد الصناديق': totalBoxes,
-          'بلد الأصل': '',
-          'بلد الوجهة': '',
-          'المحتوى': '',
-          'طريقة الدفع': '',
-          'الفرع': '',
-          'الحالة': '',
-          'تاريخ الاستلام': '',
-          'التسليم المتوقع': '',
-          'الملاحظات': ''
-        }];
+        const header = [
+          'رقم الشحنة', 'المرسل', 'هاتف المرسل', 'عنوان المرسل',
+          'المستلم', 'هاتف المستلم', 'عنوان المستلم', 'الوزن',
+          'عدد الصناديق', 'بلد الأصل', 'بلد الوجهة', 'المحتوى',
+          'طريقة الدفع', 'الفرع', 'الحالة', 'تاريخ الاستلام',
+          'التسليم المتوقع', 'الملاحظات'
+        ];
 
-        // Add individual shipment data
-        const shipmentData = filteredShipments.map(shipment => ({
-          'رقم الشحنة': shipment.shipmentNumber,
-          'المرسل': shipment.senderName,
-          'هاتف المرسل': shipment.senderPhone,
-          'عنوان المرسل': shipment.senderAddress,
-          'المستلم': shipment.recipientName,
-          'هاتف المستلم': shipment.recipientPhone,
-          'عنوان المستلم': shipment.recipientAddress,
-          'الوزن': Number(shipment.weight),
-          'عدد الصناديق': shipment.numberOfBoxes,
-          'بلد الأصل': typeof shipment.originCountry === 'object' ? shipment.originCountry?.name : shipment.originCountry,
-          'بلد الوجهة': typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name : shipment.destinationCountry,
-          'المحتوى': shipment.content,
-          'طريقة الدفع': getPaymentMethodText(shipment.paymentMethod),
-          'الفرع': typeof shipment.branch === 'object' ? shipment.branch?.name : shipment.branchName,
-          'الحالة': typeof shipment.status === 'object' ? shipment.status?.name : shipment.status,
-          'تاريخ الاستلام': shipment.receivingDate,
-          'التسليم المتوقع': shipment.expectedDeliveryDate,
-          'الملاحظات': shipment.notes
-        }));
+        // إضافة البيانات مباشرة بدون إنشاء متغيرات غير مستخدمة
 
-        exportData.push(...shipmentData);
+        // إنشاء مصنف Excel جديد
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('الشحنات المفلترة');
 
-        // إنشاء الورقة بدون عناوين أولاً
-        const ws = XLSX.utils.aoa_to_sheet([]);
-        
-        // إضافة سطر المجموع في الأعلى
-        XLSX.utils.sheet_add_aoa(ws, [
-          ['المجموع', '', '', '', '', '', '', Number(totalWeight.toFixed(2)), totalBoxes, '', '', '', '', '', '', '', '']
-        ], { origin: 'A1' });
-        
-        // إضافة بيانات الشحنات مع العناوين
-        XLSX.utils.sheet_add_json(ws, exportData.slice(1), { 
-          origin: 'A3',
-          header: [
-            'رقم الشحنة', 'المرسل', 'هاتف المرسل', 'عنوان المرسل', 
-            'المستلم', 'هاتف المستلم', 'عنوان المستلم', 'الوزن', 
-            'عدد الصناديق', 'بلد الأصل', 'بلد الوجهة', 'المحتوى', 
-            'طريقة الدفع', 'الفرع', 'الحالة', 'تاريخ الاستلام', 
-            'التسليم المتوقع', 'الملاحظات'
-          ]
+        // إضافة صف الملخص
+        const summaryRow = worksheet.addRow([
+          'المجموع', '', '', '', '', '', '',
+          Number(totalWeight.toFixed(2)), totalBoxes,
+          '', '', '', '', '', '', '', '', ''
+        ]);
+
+        // إضافة صف فارغ
+        worksheet.addRow([]);
+
+        // إضافة العناوين
+        const headerRow = worksheet.addRow(header);
+
+        // إضافة البيانات
+        filteredShipments.forEach(shipment => {
+          worksheet.addRow([
+            shipment.shipmentNumber,
+            shipment.senderName,
+            shipment.senderPhone,
+            shipment.senderAddress,
+            shipment.recipientName,
+            shipment.recipientPhone,
+            shipment.recipientAddress,
+            Number(shipment.weight),
+            shipment.numberOfBoxes,
+            typeof shipment.originCountry === 'object' ? shipment.originCountry?.name : shipment.originCountry,
+            typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name : shipment.destinationCountry,
+            shipment.content,
+            getPaymentMethodText(shipment.paymentMethod),
+            typeof shipment.branch === 'object' ? shipment.branch?.name : shipment.branchName,
+            typeof shipment.status === 'object' ? shipment.status?.name : shipment.status,
+            shipment.receivingDate ? new Date(shipment.receivingDate).toLocaleDateString() : '',
+            shipment.expectedDeliveryDate ? new Date(shipment.expectedDeliveryDate).toLocaleDateString() : '',
+            shipment.notes
+          ]);
         });
 
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'الشحنات المفلترة');
+        // تطبيق التنسيق على صف الملخص
+        summaryRow.eachCell((cell) => {
+          cell.font = { bold: true, size: 12 };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFF00' } // أصفر
+          };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = {
+            top: { style: 'medium', color: { argb: 'FF000000' } },
+            bottom: { style: 'medium', color: { argb: 'FF000000' } },
+            left: { style: 'thin', color: { argb: 'FF000000' } },
+            right: { style: 'thin', color: { argb: 'FF000000' } }
+          };
+        });
+
+        // تطبيق التنسيق على صف العناوين
+        headerRow.eachCell((cell) => {
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF0000FF' } // أزرق
+          };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FF000000' } },
+            bottom: { style: 'thin', color: { argb: 'FF000000' } },
+            left: { style: 'thin', color: { argb: 'FF000000' } },
+            right: { style: 'thin', color: { argb: 'FF000000' } }
+          };
+        });
+
+        // تطبيق التنسيق على جميع الخلايا حتى الفارغة منها
+        const totalRows = worksheet.rowCount;
+        const totalCols = header.length;
         
-        // إنشاء اسم ملف ديناميكي حسب الفلاتر
+        for (let rowNum = 1; rowNum <= totalRows; rowNum++) {
+          for (let colNum = 1; colNum <= totalCols; colNum++) {
+            const cell = worksheet.getCell(rowNum, colNum);
+            
+            if (rowNum === 1) {
+              // تنسيق صف الملخص
+              cell.font = { bold: true, size: 12 };
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFFFFF00' } // أصفر
+              };
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+              cell.border = {
+                top: { style: 'medium', color: { argb: 'FF000000' } },
+                bottom: { style: 'medium', color: { argb: 'FF000000' } },
+                left: { style: 'thin', color: { argb: 'FF000000' } },
+                right: { style: 'thin', color: { argb: 'FF000000' } }
+              };
+            } else if (rowNum === 3) {
+              // تنسيق صف العناوين
+              cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF0000FF' } // أزرق
+              };
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+              cell.border = {
+                top: { style: 'thin', color: { argb: 'FF000000' } },
+                bottom: { style: 'thin', color: { argb: 'FF000000' } },
+                left: { style: 'thin', color: { argb: 'FF000000' } },
+                right: { style: 'thin', color: { argb: 'FF000000' } }
+              };
+            } else if (rowNum > 3) {
+              // تنسيق خلايا البيانات
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFF0F8FF' } // أزرق فاتح
+              };
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+              cell.border = {
+                top: { style: 'thin', color: { argb: 'FF000000' } },
+                bottom: { style: 'thin', color: { argb: 'FF000000' } },
+                left: { style: 'thin', color: { argb: 'FF000000' } },
+                right: { style: 'thin', color: { argb: 'FF000000' } }
+              };
+            }
+          }
+        }
+
+        // تحديد عرض الأعمدة بناءً على المحتوى الفعلي
+        const columnWidths = header.map((_, colIndex) => {
+          let maxLength = 0;
+          
+          // حساب طول العنوان
+          maxLength = Math.max(maxLength, header[colIndex]?.length || 0);
+          
+          // حساب طول صف الملخص
+          const summaryValue = colIndex === 0 ? 'المجموع' : 
+                              colIndex === 7 ? Number(totalWeight.toFixed(2)).toString() :
+                              colIndex === 8 ? totalBoxes.toString() : '';
+          maxLength = Math.max(maxLength, summaryValue.length);
+          
+          // حساب طول البيانات
+          filteredShipments.forEach(shipment => {
+            let cellValue = '';
+            switch (colIndex) {
+              case 0: cellValue = shipment.shipmentNumber || ''; break;
+              case 1: cellValue = shipment.senderName || ''; break;
+              case 2: cellValue = shipment.senderPhone || ''; break;
+              case 3: cellValue = shipment.senderAddress || ''; break;
+              case 4: cellValue = shipment.recipientName || ''; break;
+              case 5: cellValue = shipment.recipientPhone || ''; break;
+              case 6: cellValue = shipment.recipientAddress || ''; break;
+              case 7: cellValue = Number(shipment.weight).toString(); break;
+              case 8: cellValue = shipment.numberOfBoxes?.toString() || ''; break;
+              case 9: cellValue = typeof shipment.originCountry === 'object' ? shipment.originCountry?.name || '' : shipment.originCountry || ''; break;
+              case 10: cellValue = typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name || '' : shipment.destinationCountry || ''; break;
+              case 11: cellValue = shipment.content || ''; break;
+              case 12: cellValue = getPaymentMethodText(shipment.paymentMethod); break;
+              case 13: cellValue = typeof shipment.branch === 'object' ? shipment.branch?.name || '' : shipment.branchName || ''; break;
+              case 14: cellValue = typeof shipment.status === 'object' ? shipment.status?.name || '' : shipment.status || ''; break;
+              case 15: cellValue = shipment.receivingDate ? new Date(shipment.receivingDate).toLocaleDateString() : ''; break;
+              case 16: cellValue = shipment.expectedDeliveryDate ? new Date(shipment.expectedDeliveryDate).toLocaleDateString() : ''; break;
+              case 17: cellValue = shipment.notes || ''; break;
+            }
+            maxLength = Math.max(maxLength, cellValue.length);
+          });
+          
+          // إضافة مساحة إضافية وتحديد حد أدنى
+          return Math.max(maxLength + 3, 12);
+        });
+
+        // تطبيق عرض الأعمدة
+        worksheet.columns.forEach((column, index) => {
+          column.width = columnWidths[index];
+        });
+
+        // حفظ الملف
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        
         const activeFiltersCount = Object.keys(filters).filter(key => filters[key as keyof ShipmentsFilters] && filters[key as keyof ShipmentsFilters] !== 'all').length;
         const fileName = activeFiltersCount > 0 
           ? `filtered_shipments_${activeFiltersCount}filters_${new Date().toISOString().split('T')[0]}.xlsx`
           : `all_shipments_${new Date().toISOString().split('T')[0]}.xlsx`;
         
-        XLSX.writeFile(wb, fileName);
+        link.download = fileName;
+        link.click();
+        window.URL.revokeObjectURL(url);
 
         toast({
           title: "تم تصدير البيانات المفلترة بنجاح",
@@ -605,75 +860,204 @@ const ShipmentsTable = () => {
         const totalWeight = allShipments.reduce((sum, s) => sum + Number(s.weight || 0), 0);
         const totalBoxes = allShipments.reduce((sum, s) => sum + Number(s.numberOfBoxes || 0), 0);
 
-        // Add summary row first
-        const exportData = [{
-          'رقم الشحنة': 'المجموع',
-          'المرسل': '',
-          'هاتف المرسل': '',
-          'عنوان المرسل': '',
-          'المستلم': '',
-          'هاتف المستلم': '',
-          'عنوان المستلم': '',
-          'الوزن': Number(totalWeight.toFixed(2)),
-          'عدد الصناديق': totalBoxes,
-          'بلد الأصل': '',
-          'بلد الوجهة': '',
-          'المحتوى': '',
-          'طريقة الدفع': '',
-          'الفرع': '',
-          'الحالة': '',
-          'تاريخ الاستلام': '',
-          'التسليم المتوقع': '',
-          'الملاحظات': ''
-        }];
+        const header = [
+          'رقم الشحنة', 'المرسل', 'هاتف المرسل', 'عنوان المرسل',
+          'المستلم', 'هاتف المستلم', 'عنوان المستلم', 'الوزن',
+          'عدد الصناديق', 'بلد الأصل', 'بلد الوجهة', 'المحتوى',
+          'طريقة الدفع', 'الفرع', 'الحالة', 'تاريخ الاستلام',
+          'التسليم المتوقع', 'الملاحظات'
+        ];
 
-        // Add individual shipment data
-        const shipmentData = allShipments.map(shipment => ({
-          'رقم الشحنة': shipment.shipmentNumber,
-          'المرسل': shipment.senderName,
-          'هاتف المرسل': shipment.senderPhone,
-          'عنوان المرسل': shipment.senderAddress,
-          'المستلم': shipment.recipientName,
-          'هاتف المستلم': shipment.recipientPhone,
-          'عنوان المستلم': shipment.recipientAddress,
-          'الوزن': Number(shipment.weight),
-          'عدد الصناديق': shipment.numberOfBoxes,
-          'بلد الأصل': typeof shipment.originCountry === 'object' ? shipment.originCountry?.name : shipment.originCountry,
-          'بلد الوجهة': typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name : shipment.destinationCountry,
-          'المحتوى': shipment.content,
-          'طريقة الدفع': getPaymentMethodText(shipment.paymentMethod),
-          'الفرع': typeof shipment.branch === 'object' ? shipment.branch?.name : shipment.branchName,
-          'الحالة': typeof shipment.status === 'object' ? shipment.status?.name : shipment.status,
-          'تاريخ الاستلام': shipment.receivingDate,
-          'التسليم المتوقع': shipment.expectedDeliveryDate,
-          'الملاحظات': shipment.notes
-        }));
+        // إضافة البيانات مباشرة بدون إنشاء متغيرات غير مستخدمة
 
-        exportData.push(...shipmentData);
+        // إنشاء مصنف Excel جديد
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('جميع الشحنات');
 
-        // إنشاء الورقة بدون عناوين أولاً
-        const ws = XLSX.utils.aoa_to_sheet([]);
-        
-        // إضافة سطر المجموع في الأعلى
-        XLSX.utils.sheet_add_aoa(ws, [
-          ['المجموع', '', '', '', '', '', '', Number(totalWeight.toFixed(2)), totalBoxes, '', '', '', '', '', '', '', '']
-        ], { origin: 'A1' });
-        
-        // إضافة بيانات الشحنات مع العناوين
-        XLSX.utils.sheet_add_json(ws, exportData.slice(1), { 
-          origin: 'A3',
-          header: [
-            'رقم الشحنة', 'المرسل', 'هاتف المرسل', 'عنوان المرسل', 
-            'المستلم', 'هاتف المستلم', 'عنوان المستلم', 'الوزن', 
-            'عدد الصناديق', 'بلد الأصل', 'بلد الوجهة', 'المحتوى', 
-            'طريقة الدفع', 'الفرع', 'الحالة', 'تاريخ الاستلام', 
-            'التسليم المتوقع', 'الملاحظات'
-          ]
+        // إضافة صف الملخص
+        const summaryRow = worksheet.addRow([
+          'المجموع', '', '', '', '', '', '',
+          Number(totalWeight.toFixed(2)), totalBoxes,
+          '', '', '', '', '', '', '', '', ''
+        ]);
+
+        // إضافة صف فارغ
+        worksheet.addRow([]);
+
+        // إضافة العناوين
+        const headerRow = worksheet.addRow(header);
+
+        // إضافة البيانات
+        allShipments.forEach(shipment => {
+          worksheet.addRow([
+            shipment.shipmentNumber,
+            shipment.senderName,
+            shipment.senderPhone,
+            shipment.senderAddress,
+            shipment.recipientName,
+            shipment.recipientPhone,
+            shipment.recipientAddress,
+            Number(shipment.weight),
+            shipment.numberOfBoxes,
+            typeof shipment.originCountry === 'object' ? shipment.originCountry?.name : shipment.originCountry,
+            typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name : shipment.destinationCountry,
+            shipment.content,
+            getPaymentMethodText(shipment.paymentMethod),
+            typeof shipment.branch === 'object' ? shipment.branch?.name : shipment.branchName,
+            typeof shipment.status === 'object' ? shipment.status?.name : shipment.status,
+            shipment.receivingDate ? new Date(shipment.receivingDate).toLocaleDateString() : '',
+            shipment.expectedDeliveryDate ? new Date(shipment.expectedDeliveryDate).toLocaleDateString() : '',
+            shipment.notes
+          ]);
         });
 
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'جميع الشحنات');
-        XLSX.writeFile(wb, `all_shipments_${new Date().toISOString().split('T')[0]}.xlsx`);
+        // تطبيق التنسيق على صف الملخص
+        summaryRow.eachCell((cell) => {
+          cell.font = { bold: true, size: 12 };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFF00' } // أصفر
+          };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = {
+            top: { style: 'medium', color: { argb: 'FF000000' } },
+            bottom: { style: 'medium', color: { argb: 'FF000000' } },
+            left: { style: 'thin', color: { argb: 'FF000000' } },
+            right: { style: 'thin', color: { argb: 'FF000000' } }
+          };
+        });
+
+        // تطبيق التنسيق على صف العناوين
+        headerRow.eachCell((cell) => {
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF0000FF' } // أزرق
+          };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FF000000' } },
+            bottom: { style: 'thin', color: { argb: 'FF000000' } },
+            left: { style: 'thin', color: { argb: 'FF000000' } },
+            right: { style: 'thin', color: { argb: 'FF000000' } }
+          };
+        });
+
+        // تطبيق التنسيق على جميع الخلايا حتى الفارغة منها
+        const totalRows = worksheet.rowCount;
+        const totalCols = header.length;
+        
+        for (let rowNum = 1; rowNum <= totalRows; rowNum++) {
+          for (let colNum = 1; colNum <= totalCols; colNum++) {
+            const cell = worksheet.getCell(rowNum, colNum);
+            
+            if (rowNum === 1) {
+              // تنسيق صف الملخص
+              cell.font = { bold: true, size: 12 };
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFFFFF00' } // أصفر
+              };
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+              cell.border = {
+                top: { style: 'medium', color: { argb: 'FF000000' } },
+                bottom: { style: 'medium', color: { argb: 'FF000000' } },
+                left: { style: 'thin', color: { argb: 'FF000000' } },
+                right: { style: 'thin', color: { argb: 'FF000000' } }
+              };
+            } else if (rowNum === 3) {
+              // تنسيق صف العناوين
+              cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF0000FF' } // أزرق
+              };
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+              cell.border = {
+                top: { style: 'thin', color: { argb: 'FF000000' } },
+                bottom: { style: 'thin', color: { argb: 'FF000000' } },
+                left: { style: 'thin', color: { argb: 'FF000000' } },
+                right: { style: 'thin', color: { argb: 'FF000000' } }
+              };
+            } else if (rowNum > 3) {
+              // تنسيق خلايا البيانات
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFF0F8FF' } // أزرق فاتح
+              };
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+              cell.border = {
+                top: { style: 'thin', color: { argb: 'FF000000' } },
+                bottom: { style: 'thin', color: { argb: 'FF000000' } },
+                left: { style: 'thin', color: { argb: 'FF000000' } },
+                right: { style: 'thin', color: { argb: 'FF000000' } }
+              };
+            }
+          }
+        }
+
+        // تحديد عرض الأعمدة بناءً على المحتوى الفعلي
+        const columnWidths = header.map((_, colIndex) => {
+          let maxLength = 0;
+          
+          // حساب طول العنوان
+          maxLength = Math.max(maxLength, header[colIndex]?.length || 0);
+          
+          // حساب طول صف الملخص
+          const summaryValue = colIndex === 0 ? 'المجموع' : 
+                              colIndex === 7 ? Number(totalWeight.toFixed(2)).toString() :
+                              colIndex === 8 ? totalBoxes.toString() : '';
+          maxLength = Math.max(maxLength, summaryValue.length);
+          
+          // حساب طول البيانات
+          allShipments.forEach(shipment => {
+            let cellValue = '';
+            switch (colIndex) {
+              case 0: cellValue = shipment.shipmentNumber || ''; break;
+              case 1: cellValue = shipment.senderName || ''; break;
+              case 2: cellValue = shipment.senderPhone || ''; break;
+              case 3: cellValue = shipment.senderAddress || ''; break;
+              case 4: cellValue = shipment.recipientName || ''; break;
+              case 5: cellValue = shipment.recipientPhone || ''; break;
+              case 6: cellValue = shipment.recipientAddress || ''; break;
+              case 7: cellValue = Number(shipment.weight).toString(); break;
+              case 8: cellValue = shipment.numberOfBoxes?.toString() || ''; break;
+              case 9: cellValue = typeof shipment.originCountry === 'object' ? shipment.originCountry?.name || '' : shipment.originCountry || ''; break;
+              case 10: cellValue = typeof shipment.destinationCountry === 'object' ? shipment.destinationCountry?.name || '' : shipment.destinationCountry || ''; break;
+              case 11: cellValue = shipment.content || ''; break;
+              case 12: cellValue = getPaymentMethodText(shipment.paymentMethod); break;
+              case 13: cellValue = typeof shipment.branch === 'object' ? shipment.branch?.name || '' : shipment.branchName || ''; break;
+              case 14: cellValue = typeof shipment.status === 'object' ? shipment.status?.name || '' : shipment.status || ''; break;
+              case 15: cellValue = shipment.receivingDate ? new Date(shipment.receivingDate).toLocaleDateString() : ''; break;
+              case 16: cellValue = shipment.expectedDeliveryDate ? new Date(shipment.expectedDeliveryDate).toLocaleDateString() : ''; break;
+              case 17: cellValue = shipment.notes || ''; break;
+            }
+            maxLength = Math.max(maxLength, cellValue.length);
+          });
+          
+          // إضافة مساحة إضافية وتحديد حد أدنى
+          return Math.max(maxLength + 3, 12);
+        });
+
+        // تطبيق عرض الأعمدة
+        worksheet.columns.forEach((column, index) => {
+          column.width = columnWidths[index];
+        });
+
+        // حفظ الملف
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `all_shipments_${new Date().toISOString().split('T')[0]}.xlsx`;
+        link.click();
+        window.URL.revokeObjectURL(url);
 
         toast({
           title: "تم تصدير البيانات بنجاح",
@@ -1571,8 +1955,8 @@ const ShipmentsTable = () => {
                 </TableRow>
               ) : shipments.length > 0 ? (
                 shipments.map((shipment) => (
-                  <TableRow key={shipment.id} className="hover:bg-gray-50">
-                    <TableCell className="sticky left-0 bg-white z-10">
+                  <TableRow key={shipment.id} className="hover:bg-green-100 hover:shadow-sm transition-all duration-200 cursor-pointer">
+                    <TableCell className="sticky left-0 z-10 hover:bg-blue-50 transition-colors duration-200">
                       <Checkbox
                         checked={selectedShipments.includes(shipment.id)}
                         onCheckedChange={(checked) => handleSelectShipment(shipment.id, checked as boolean)}
@@ -1582,7 +1966,7 @@ const ShipmentsTable = () => {
                       <TableCell 
                         key={col.id}
                         className={`${
-                          col.id === 'shipmentNumber' ? 'font-medium text-blue-600 sticky left-12 bg-white z-10' : ''
+                          col.id === 'shipmentNumber' ? 'font-medium text-blue-600 sticky left-12  z-10' : ''
                         }`}
                       >
                         {col.id === 'shipmentNumber' ? (
@@ -1738,7 +2122,7 @@ const ShipmentsTable = () => {
                         ) : null}
                       </TableCell>
                     ))}
-                    <TableCell className="sticky right-0 bg-white z-10">
+                    <TableCell className="sticky right-0 z-10 hover:bg-blue-50 transition-colors duration-200">
                       <div className="flex items-center gap-1">
                         <Button variant="outline" size="sm" asChild>
                           <Link to={`/shipment/${shipment.id}`}>
